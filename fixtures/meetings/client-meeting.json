@@ -1,0 +1,30 @@
+{
+  "id": "MSpkYzE3Njc0Yy04MWQ5LTRhZGItYmZiMi1jbGllbnQtbWVldGluZy0wMDE",
+  "subject": "Verdant Kitchens x Dramantram - Brand & Website Kickoff",
+  "joinUrl": "https://teams.microsoft.com/l/meetup-join/19%3ameeting_ZmFrZTAwMQ%40thread.v2/0",
+  "startDateTime": "2026-09-22T10:00:00Z",
+  "endDateTime": "2026-09-22T10:38:00Z",
+  "hostedBy": "external",
+  "organizer": {
+    "identity": {
+      "user": {
+        "id": "8f2c1b44-0000-4aaa-9c31-verdantceo",
+        "displayName": "Ananya Rao",
+        "email": "ananya.rao@verdantkitchens.in"
+      }
+    }
+  },
+  "dramantramUser": {
+    "id": "a1b2c3d4-1111-4bbb-8888-devmaheshwari",
+    "displayName": "Dev Maheshwari",
+    "email": "dev@dramantram.com",
+    "phone": "+91 98100 00000"
+  },
+  "attendees": [
+    { "displayName": "Ananya Rao", "email": "ananya.rao@verdantkitchens.in", "role": "organizer" },
+    { "displayName": "Kabir Shah", "email": "kabir.shah@verdantkitchens.in", "role": "attendee" },
+    { "displayName": "Dev Maheshwari", "email": "dev@dramantram.com", "role": "attendee" },
+    { "displayName": "Ritika Sen", "email": "ritika@dramantram.com", "role": "attendee" }
+  ],
+  "transcriptFixture": "sample-meeting-1.vtt"
+}

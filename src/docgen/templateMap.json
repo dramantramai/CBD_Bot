@@ -1,0 +1,99 @@
+{
+  "projectName": {
+    "row": 1,
+    "cell": 0,
+    "mode": "append-after-label",
+    "label": "Project Name:"
+  },
+  "launchDate": {
+    "row": 2,
+    "cell": 0,
+    "mode": "append-after-label",
+    "label": "Launch/Delivery date:"
+  },
+  "projectOwnerEmail": {
+    "row": 2,
+    "cell": 2,
+    "mode": "empty-cell"
+  },
+  "projectOwnerName": {
+    "row": 3,
+    "cell": 1,
+    "mode": "empty-cell"
+  },
+  "projectOwnerPhone": {
+    "row": 3,
+    "cell": 3,
+    "mode": "empty-cell"
+  },
+  "spoc": {
+    "row": 4,
+    "cell": 1,
+    "mode": "empty-cell"
+  },
+  "escalationPoint": {
+    "row": 4,
+    "cell": 3,
+    "mode": "empty-cell"
+  },
+  "businessObjective": {
+    "row": 6,
+    "cell": 1,
+    "mode": "append-paragraph"
+  },
+  "solutionScope": {
+    "row": 8,
+    "cell": 1,
+    "mode": "empty-cell"
+  },
+  "keyMessage": {
+    "row": 9,
+    "cell": 1,
+    "mode": "append-paragraph"
+  },
+  "callToAction": {
+    "row": 11,
+    "cell": 1,
+    "mode": "append-paragraph"
+  },
+  "audienceProfile": {
+    "row": 12,
+    "cell": 1,
+    "mode": "empty-cell"
+  },
+  "releasePlatformOther": {
+    "row": 15,
+    "cell": 2,
+    "mode": "empty-cell"
+  },
+  "languageMediumOther": {
+    "row": 16,
+    "cell": 2,
+    "mode": "empty-cell"
+  },
+  "accentOther": {
+    "row": 17,
+    "cell": 2,
+    "mode": "empty-cell"
+  },
+  "availableResourcesOther": {
+    "row": 18,
+    "cell": 2,
+    "mode": "empty-cell"
+  },
+  "otherMentions": {
+    "row": 19,
+    "cell": 0,
+    "mode": "append-after-label",
+    "label": "Any other Important mentions:"
+  },
+  "clientOrgOverview": {
+    "row": 21,
+    "cell": 1,
+    "mode": "prefixed-lines",
+    "prefixes": [
+      "Website:",
+      "SMM Channels:"
+    ]
+  }
+}

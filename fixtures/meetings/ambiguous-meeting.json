@@ -1,0 +1,27 @@
+{
+  "id": "MSpkYzE3Njc0Yy04MWQ5LTRhZGItYmZiMi1hbWJpZ3VvdXMtMDAz",
+  "subject": "Catch-up call",
+  "joinUrl": "https://teams.microsoft.com/l/meetup-join/19%3ameeting_ZmFrZTAwMw%40thread.v2/0",
+  "startDateTime": "2026-09-22T12:00:00Z",
+  "endDateTime": "2026-09-22T12:27:00Z",
+  "hostedBy": "dramantram",
+  "organizer": {
+    "identity": {
+      "user": {
+        "id": "a1b2c3d4-1111-4bbb-8888-devmaheshwari",
+        "displayName": "Dev Maheshwari",
+        "email": "dev@dramantram.com"
+      }
+    }
+  },
+  "dramantramUser": {
+    "id": "a1b2c3d4-1111-4bbb-8888-devmaheshwari",
+    "displayName": "Dev Maheshwari",
+    "email": "dev@dramantram.com"
+  },
+  "attendees": [
+    { "displayName": "Dev Maheshwari", "email": "dev@dramantram.com", "role": "organizer" },
+    { "displayName": "+91 90000 12345", "email": null, "role": "attendee" }
+  ],
+  "transcriptFixture": "sample-meeting-2.vtt"
+}

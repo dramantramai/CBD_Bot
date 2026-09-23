@@ -1,0 +1,28 @@
+{
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.4",
+  "body": [
+    {
+      "type": "TextBlock",
+      "text": "Client Brief Documents, automatically",
+      "weight": "Bolder",
+      "size": "Medium",
+      "wrap": true
+    },
+    {
+      "type": "TextBlock",
+      "text": "Hi ${userName}! After a client meeting I read the transcript and draft the Client Brief Document for you. Internal meetings are ignored.",
+      "wrap": true
+    },
+    {
+      "type": "TextBlock",
+      "text": "To reach transcripts from meetings hosted by a client, I need a one-time sign-in.",
+      "wrap": true,
+      "isSubtle": true
+    }
+  ],
+  "actions": [
+    { "type": "Action.Submit", "title": "Sign in", "data": { "action": "signin" } }
+  ]
+}

@@ -1,0 +1,257 @@
+{
+  "117878062": {
+    "group": "audience",
+    "label": "Internal team",
+    "row": 7
+  },
+  "157506480": {
+    "group": "tone",
+    "label": "Fun/Witty",
+    "row": 10
+  },
+  "174080004": {
+    "group": "accent",
+    "label": "Indian",
+    "row": 17
+  },
+  "218177502": {
+    "group": "video",
+    "label": "Sales & Marketing video",
+    "row": 24
+  },
+  "260339879": {
+    "group": "audience",
+    "label": "External Partners",
+    "row": 7
+  },
+  "451445447": {
+    "group": "availableResources",
+    "label": "Others",
+    "row": 18
+  },
+  "463163921": {
+    "group": "design",
+    "label": "Report/ PPT design",
+    "row": 23
+  },
+  "534309693": {
+    "group": "releasePlatform",
+    "label": "Website",
+    "row": 15
+  },
+  "535778712": {
+    "group": "feeling",
+    "label": "Inspired",
+    "row": 10
+  },
+  "712704046": {
+    "group": "contentConsulting",
+    "label": "Content Planning",
+    "row": 22
+  },
+  "717084362": {
+    "group": "contentConsulting",
+    "label": "Creative Project executions",
+    "row": 22
+  },
+  "790711345": {
+    "group": "emotions",
+    "label": "Happy",
+    "row": 10
+  },
+  "834652990": {
+    "group": "emotions",
+    "label": "Sad",
+    "row": 10
+  },
+  "961772625": {
+    "group": "design",
+    "label": "Magazine & Print designs",
+    "row": 23
+  },
+  "977577133": {
+    "group": "releasePlatform",
+    "label": "TV/ Broadcasting",
+    "row": 15
+  },
+  "988669608": {
+    "group": "feeling",
+    "label": "Others",
+    "row": 10
+  },
+  "1075478429": {
+    "group": "languageMedium",
+    "label": "Others",
+    "row": 16
+  },
+  "1259403778": {
+    "group": "accent",
+    "label": "USA",
+    "row": 17
+  },
+  "1279906560": {
+    "group": "emotions",
+    "label": "Fear",
+    "row": 10
+  },
+  "1443119011": {
+    "group": "smm",
+    "label": "Brand Presence/Awareness",
+    "row": 25
+  },
+  "1522820010": {
+    "group": "availableResources",
+    "label": "Brand Guideline",
+    "row": 18
+  },
+  "1540709204": {
+    "group": "audience",
+    "label": "End Customer",
+    "row": 7
+  },
+  "1575170267": {
+    "group": "feeling",
+    "label": "Scared",
+    "row": 10
+  },
+  "1636143497": {
+    "group": "languageMedium",
+    "label": "Hindi",
+    "row": 16
+  },
+  "1747294519": {
+    "group": "design",
+    "label": "Social Media Branding",
+    "row": 23
+  },
+  "1839883122": {
+    "group": "design",
+    "label": "Brand Identity guidelines",
+    "row": 23
+  },
+  "1936480306": {
+    "group": "tone",
+    "label": "Others",
+    "row": 10
+  },
+  "-74894604": {
+    "group": "audience",
+    "label": "Executive & Management",
+    "row": 7
+  },
+  "-1213719156": {
+    "group": "audience",
+    "label": "Webpage Visitors",
+    "row": 7
+  },
+  "-388270195": {
+    "group": "emotions",
+    "label": "Surprised",
+    "row": 10
+  },
+  "-126559093": {
+    "group": "emotions",
+    "label": "Others",
+    "row": 10
+  },
+  "-185681238": {
+    "group": "feeling",
+    "label": "Informed",
+    "row": 10
+  },
+  "-1533407608": {
+    "group": "feeling",
+    "label": "Safe",
+    "row": 10
+  },
+  "-760911353": {
+    "group": "feeling",
+    "label": "Curious",
+    "row": 10
+  },
+  "-99648421": {
+    "group": "tone",
+    "label": "Formal",
+    "row": 10
+  },
+  "-62654007": {
+    "group": "tone",
+    "label": "Warm",
+    "row": 10
+  },
+  "-1186125773": {
+    "group": "tone",
+    "label": "Casual",
+    "row": 10
+  },
+  "-479917026": {
+    "group": "releasePlatform",
+    "label": "social media",
+    "row": 15
+  },
+  "-505588482": {
+    "group": "releasePlatform",
+    "label": "Others",
+    "row": 15
+  },
+  "-2071341749": {
+    "group": "languageMedium",
+    "label": "English",
+    "row": 16
+  },
+  "-2031939361": {
+    "group": "accent",
+    "label": "UK",
+    "row": 17
+  },
+  "-1732077453": {
+    "group": "accent",
+    "label": "Others",
+    "row": 17
+  },
+  "-604033058": {
+    "group": "availableResources",
+    "label": "Logo Open files",
+    "row": 18
+  },
+  "-1488159966": {
+    "group": "availableResources",
+    "label": "Project Open Files",
+    "row": 18
+  },
+  "-1661070048": {
+    "group": "design",
+    "label": "Others",
+    "row": 23
+  },
+  "-1264604899": {
+    "group": "video",
+    "label": "Adv. Film/ TVC",
+    "row": 24
+  },
+  "-1333991555": {
+    "group": "video",
+    "label": "Animated Explainers",
+    "row": 24
+  },
+  "-787746640": {
+    "group": "video",
+    "label": "L&D/e-Learning Videos",
+    "row": 24
+  },
+  "-731232581": {
+    "group": "video",
+    "label": "Stock based Videos",
+    "row": 24
+  },
+  "-1828965055": {
+    "group": "video",
+    "label": "Live Action video",
+    "row": 24
+  },
+  "-1670717132": {
+    "group": "smm",
+    "label": "Grow your Audience/Market",
+    "row": 25
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.4",
+  "body": [
+    { "type": "TextBlock", "text": "Client Brief Document ready", "weight": "Bolder", "size": "Medium" },
+    { "type": "TextBlock", "text": "${projectName}", "wrap": true, "size": "Small", "isSubtle": true },
+    {
+      "type": "FactSet",
+      "facts": [
+        { "title": "Meeting", "value": "${title}" },
+        { "title": "Confidence", "value": "${confidenceAvg} / 5" },
+        { "title": "Needs review", "value": "${needsConfirmationCount} field(s)" }
+      ]
+    },
+    {
+      "type": "TextBlock",
+      "text": "Fields I was unsure about are tagged [NEEDS CONFIRMATION] in the document. Please review before sending to the client.",
+      "wrap": true,
+      "isSubtle": true
+    }
+  ]
+}

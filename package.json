@@ -1,0 +1,37 @@
+{
+  "name": "cbd-bot",
+  "version": "1.0.0",
+  "description": "Dramantram CBD Auto-Fill Bot - generates Client Brief Documents from Teams meeting transcripts",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js",
+    "test": "vitest run",
+    "test:e2e": "node scripts/testE2E.js",
+    "build:template-map": "node scripts/buildTemplateMap.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@azure/msal-node": "^6.0.1",
+    "@google/generative-ai": "^0.24.1",
+    "@huggingface/inference": "^4.13.30",
+    "@microsoft/microsoft-graph-client": "^3.0.7",
+    "better-sqlite3": "^13.0.3",
+    "botbuilder": "^4.23.3",
+    "dotenv": "^18.0.3",
+    "express": "^5.2.1",
+    "groq-sdk": "^1.6.0",
+    "isomorphic-fetch": "^3.0.0",
+    "node-cron": "^4.6.0",
+    "pino": "^10.3.1",
+    "pizzip": "^3.3.0"
+  },
+  "devDependencies": {
+    "fast-xml-parser": "^5.11.1",
+    "vitest": "^5.0.1"
+  }
+}

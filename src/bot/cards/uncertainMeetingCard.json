@@ -1,0 +1,32 @@
+{
+  "type": "AdaptiveCard",
+  "$schema": "http://adaptivecards.io/schemas/adaptive-card.json",
+  "version": "1.4",
+  "body": [
+    { "type": "TextBlock", "text": "Meeting detected", "weight": "Bolder", "size": "Medium" },
+    { "type": "TextBlock", "text": "You just finished: ${title}", "wrap": true },
+    {
+      "type": "TextBlock",
+      "text": "${durationMinutes} min · ${attendeeCount} attendees",
+      "isSubtle": true,
+      "spacing": "None"
+    },
+    {
+      "type": "TextBlock",
+      "text": "Should I generate a Client Brief Document for this meeting?",
+      "wrap": true
+    }
+  ],
+  "actions": [
+    {
+      "type": "Action.Submit",
+      "title": "Yes, generate CBD",
+      "data": { "action": "confirmMeeting", "answer": "yes", "meetingId": "${meetingId}" }
+    },
+    {
+      "type": "Action.Submit",
+      "title": "No, skip",
+      "data": { "action": "confirmMeeting", "answer": "no", "meetingId": "${meetingId}" }
+    }
+  ]
+}
