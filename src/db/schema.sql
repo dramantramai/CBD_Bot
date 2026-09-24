@@ -30,16 +30,6 @@ CREATE TABLE IF NOT EXISTS meeting_logs (
 CREATE INDEX IF NOT EXISTS idx_meeting_logs_meeting ON meeting_logs (meeting_id);
 CREATE INDEX IF NOT EXISTS idx_meeting_logs_user    ON meeting_logs (user_id);
 
--- Future learning layer: titles a user repeatedly declines to brief.
-CREATE TABLE IF NOT EXISTS skipped_titles (
-  user_id       TEXT NOT NULL,
-  title_pattern TEXT NOT NULL,
-  skip_count    INTEGER NOT NULL DEFAULT 0,
-  auto_skip     INTEGER NOT NULL DEFAULT 0,
-  updated_at    TEXT NOT NULL,
-  PRIMARY KEY (user_id, title_pattern)
-);
-
 -- Beyond blueprint section 10: Bot Framework can only start a conversation with
 -- a user it has seen before, so the reference from their first interaction has
 -- to be kept or the bot can never DM them a finished brief.

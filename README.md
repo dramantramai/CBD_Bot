@@ -188,9 +188,9 @@ point in the code where it matters.
 3. **Oracle Cloud VM** — Ubuntu ARM in `ap-mumbai-1`, then Node, PM2, Nginx and
    a Let's Encrypt certificate. Graph will not post notifications to anything
    but public HTTPS.
-4. **API keys** — Gemini from aistudio.google.com; Groq and Hugging Face are
-   optional fallbacks. Without any key the bot uses the offline extractor, which
-   is for development only and must not be used for real briefs.
+4. **API keys** — Gemini from aistudio.google.com, Groq from console.groq.com as
+   the fallback. Without either the bot uses the offline stub, which fills in
+   only what the calendar knows and flags everything else for review.
 5. **Teams transcription** — turn it on org-wide in the Teams Admin Center, or
    there is nothing to read.
 6. **Teams app** — fill the `TODO_` values in `src/manifest/manifest.json`
@@ -215,7 +215,7 @@ src/config/adapters.js   the one place MOCK_MODE picks real vs. fixture
 src/bot/                 Teams handler, SSO, proactive messaging, cards
 src/graph/               MSAL auth, attendees, transcripts, subscriptions, VTT
 src/filter/              the 3-step decision tree and the "was this a client?" card
-src/llm/                 Gemini → Groq → Hugging Face, schema, offline extractor
+src/llm/                 Gemini → Groq chain, model rotation, schema
 src/docgen/              the template and the code that fills it
 src/db/                  SQLite schema and CRUD
 src/retention.js         deletes generated briefs after 30 days
@@ -225,11 +225,15 @@ scripts/                 E2E runner, template map builder
 
 ## Deliberately not built
 
-- **A job queue.** `src/queue/worker.js` explains when BullMQ would earn its
-  Redis instance. Meetings are processed inline; one process, no extra service.
-- **The skip-learning layer.** `skipped_titles` counts declines already, but
-  `shouldAutoSkip()` returns false — matching "Weekly sync - 12 Mar" against
-  "Weekly sync - 19 Mar" needs a rule we have not agreed on.
-- **The Resource Request Bot.** `src/resource-request/` and
-  `src/routes/outlookAction.js` are placeholders for the other bot sharing
-  this VM.
+- **A job queue.** Meetings are processed inline: one process, no Redis. BullMQ
+  earns its keep only once meetings arrive faster than they are handled, or
+  losing one to a restart starts to matter.
+- **A skip-learning layer.** The blueprint wants the bot to stop asking about
+  titles the user always declines. Matching "Weekly sync - 12 Mar" against
+  "Weekly sync - 19 Mar" needs a rule nobody has agreed on, so nothing is built
+  and no counters are kept.
+- **A third LLM fallback.** Gemini's rotation carries ~200 requests/day and Groq
+  another 1,000, against ~30 meetings. Hugging Face was tried and removed: it
+  ticked four contradictory mood boxes on one transcript, and a third provider
+  earns nothing behind that much headroom.
+- **The Resource Request Bot.** It shares the VM but not this repo.

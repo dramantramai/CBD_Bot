@@ -1,5 +1,4 @@
 const { env } = require('../config/env');
-const { shouldAutoSkip } = require('../db/skippedTitles');
 
 const DECISION = {
   PROCESS: 'process',
@@ -10,7 +9,6 @@ const DECISION = {
 const REASON = {
   INTERNAL: 'skipped_internal',
   SHORT: 'skipped_short',
-  LEARNED: 'skipped_learned',
   EXTERNAL_AND_LONG: 'processed',
   UNRESOLVED_ATTENDEES: 'unresolved_attendees',
 };
@@ -46,11 +44,6 @@ function shouldProcessMeeting(meeting, options = {}) {
     durationMinutes,
     attendeeCount: attendees.length,
   };
-
-  const userId = meeting.dramantramUser && meeting.dramantramUser.id;
-  if (shouldAutoSkip(userId, meeting.subject)) {
-    return { ...base, decision: DECISION.SKIP, reason: REASON.LEARNED };
-  }
 
   // Step 1: external attendee check.
   const externals = attendees.filter((a) => isExternal(a.email, tenantDomain));

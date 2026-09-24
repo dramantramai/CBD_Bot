@@ -18,14 +18,12 @@
   "dependencies": {
     "@azure/msal-node": "^6.0.1",
     "@google/generative-ai": "^0.24.1",
-    "@huggingface/inference": "^4.13.30",
     "@microsoft/microsoft-graph-client": "^3.0.7",
     "better-sqlite3": "^13.0.3",
     "botbuilder": "^4.23.3",
     "dotenv": "^18.0.3",
     "express": "^5.2.1",
     "groq-sdk": "^1.6.0",
-    "isomorphic-fetch": "^3.0.0",
     "node-cron": "^4.6.0",
     "pino": "^10.3.1",
     "pizzip": "^3.3.0"

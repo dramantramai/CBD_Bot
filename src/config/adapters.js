@@ -11,5 +11,4 @@ module.exports = {
   attendees: pick('../graph/attendees', '../graph/attendees.mock'),
   transcripts: pick('../graph/transcripts', '../graph/transcripts.mock'),
   proactive: pick('../bot/proactive', '../bot/proactive.mock'),
-  isMock: env.MOCK_MODE,
 };

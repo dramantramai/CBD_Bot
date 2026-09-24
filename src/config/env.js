@@ -73,8 +73,6 @@ const env = {
     ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'qwen/qwen3.8-27b'],
     process.env.GROQ_MODEL
   ),
-  HF_API_KEY: process.env.HF_API_KEY || '',
-  HF_MODEL: process.env.HF_MODEL || 'meta-llama/Llama-3.1-8B-Instruct',
 
   DB_PATH: process.env.DB_PATH || 'data/cbd-bot.sqlite',
   OUTPUT_DIR: process.env.OUTPUT_DIR || 'dist/output',

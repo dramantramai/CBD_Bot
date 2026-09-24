@@ -1,5 +1,5 @@
 const logger = require('../utils/logger');
-const { graphClient, statusOf } = require('./client');
+const { graphClient } = require('./client');
 const auth = require('./auth');
 const { toTranscriptText } = require('./vtt');
 
@@ -87,7 +87,7 @@ async function getTranscript({ meetingId, userId, joinUrl, organizerId }) {
     logger.info({ meetingId, source: 'application' }, 'Transcript fetched');
     return { ...result, text: toTranscriptText(result.vtt) };
   } catch (err) {
-    const status = statusOf(err);
+    const status = err.statusCode || err.status || (err.response && err.response.status);
     const recoverable = err instanceof NoTranscriptError || NOT_VISIBLE.has(status);
     if (!recoverable) throw err;
     logger.info(

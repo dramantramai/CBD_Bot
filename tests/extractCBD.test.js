@@ -1,9 +1,4 @@
-const { extractCBD, normalize, providerHealth } = require('../src/llm/extractCBD');
-
-// Cooldown state is a module-level singleton (by design - it must survive
-// across calls in the real process), so tests that trigger a rate-limit-shaped
-// error must not leak that into unrelated tests.
-beforeEach(() => providerHealth.reset());
+const { extractCBD, normalize } = require('../src/llm/extractCBD');
 const { toTranscriptText } = require('../src/graph/vtt');
 const { parseJsonLoose } = require('../src/llm/parseJson');
 const fs = require('fs');
@@ -56,17 +51,17 @@ describe('extractCBD fallback chain', () => {
     expect(r._provider).toBe('groq');
   });
 
-  it('falls all the way to Hugging Face, then to the offline extractor', async () => {
+  it('falls back to the offline extractor when every provider is down', async () => {
     const boom = (name) =>
       provider(name, async () => {
         throw new Error(`${name} is down`);
       });
     const r = await extractCBD(
       { transcript, meeting },
-      { chain: [boom('gemini'), boom('groq'), boom('huggingface')] }
+      { chain: [boom('gemini'), boom('groq')] }
     );
     expect(r._provider).toBe('mock');
-    expect(r._providerErrors).toHaveLength(3);
+    expect(r._providerErrors).toHaveLength(2);
     // The document still gets produced, which is the point of the chain.
     expect(r.projectName).toBeTruthy();
   });
@@ -153,7 +148,7 @@ describe('parseJsonLoose', () => {
 describe('provider gating', () => {
   // Every gating test states its full key configuration explicitly, so a key
   // this test doesn't mention is cleared rather than leaking in from .env.
-  const KEY_VARS = ['GEMINI_API_KEY', 'GROQ_API_KEY', 'HF_API_KEY'];
+  const KEY_VARS = ['GEMINI_API_KEY', 'GROQ_API_KEY'];
 
   const reload = (envOverrides) => {
     const saved = { ...process.env };
@@ -167,7 +162,6 @@ describe('provider gating', () => {
       '../src/llm/extractCBD',
       '../src/llm/gemini',
       '../src/llm/groq',
-      '../src/llm/huggingface',
     ]) {
       delete require.cache[require.resolve(m)];
     }
@@ -198,7 +192,6 @@ describe('provider gating', () => {
       FORCE_MOCK_LLM: 'false',
       GEMINI_API_KEY: '',
       GROQ_API_KEY: '',
-      HF_API_KEY: '',
     });
     expect(providerChain()).toHaveLength(0);
   });
@@ -213,68 +206,12 @@ describe('provider gating', () => {
     expect(providerChain()).toHaveLength(0);
   });
 
-  it('orders the chain Gemini, Groq, Hugging Face', () => {
+  it('orders the chain Gemini then Groq', () => {
     const { providerChain } = reload({
       FORCE_MOCK_LLM: 'false',
       GEMINI_API_KEY: 'k',
       GROQ_API_KEY: 'k',
-      HF_API_KEY: 'k',
     });
-    expect(providerChain().map((p) => p.name)).toEqual([
-      'gemini', 'groq', 'huggingface',
-    ]);
-  });
-});
-
-describe('provider cooldown', () => {
-  const provider = (name, impl) => ({ name, isConfigured: () => true, extract: impl });
-
-  it('removes a rate-limited provider from the automatic chain', async () => {
-    const flaky = provider('gemini', async () => {
-      throw Object.assign(new Error('429 rate limit exceeded'), { statusCode: 429 });
-    });
-
-    // An explicit chain (e.g. --provider from the CLI) is a deliberate
-    // override and must always be honoured, cooldown or not.
-    await extractCBD({ transcript, meeting }, { chain: [flaky] });
-    expect(providerHealth.isOnCooldown('gemini')).toBe(true);
-
-    // providerChain() is what the real pipeline calls with no override, and
-    // that is where cooldown must actually take effect.
-    const saved = { ...process.env };
-    process.env.GEMINI_API_KEY = 'k';
-    process.env.GROQ_API_KEY = 'k';
-    process.env.HF_API_KEY = 'k';
-    process.env.FORCE_MOCK_LLM = 'false';
-    for (const m of ['../src/config/env', '../src/llm/extractCBD']) {
-      delete require.cache[require.resolve(m)];
-    }
-    const fresh = require('../src/llm/extractCBD');
-    fresh.providerHealth.noteResult('gemini', Object.assign(new Error('429'), { statusCode: 429 }));
-    const names = fresh.providerChain().map((p) => p.name);
-    process.env = saved;
-
-    expect(names).toEqual(['groq', 'huggingface']);
-  });
-
-  it('does not cool down a provider for an unrelated failure', async () => {
-    const calls = [];
-    const broken = provider('broken', async () => {
-      calls.push('broken');
-      throw new Error('malformed JSON in response');
-    });
-    await extractCBD({ transcript, meeting }, { chain: [broken] });
-    expect(providerHealth.isOnCooldown('broken')).toBe(false);
-
-    calls.length = 0;
-    await extractCBD({ transcript, meeting }, { chain: [broken] });
-    expect(calls).toEqual(['broken']); // tried again, not skipped
-  });
-
-  it('recognises quota and RESOURCE_EXHAUSTED wording alongside plain 429s', () => {
-    expect(providerHealth.isRateLimited(new Error('RESOURCE_EXHAUSTED: quota'))).toBe(true);
-    expect(providerHealth.isRateLimited(new Error('Too Many Requests'))).toBe(true);
-    expect(providerHealth.isRateLimited(Object.assign(new Error('x'), { status: 429 }))).toBe(true);
-    expect(providerHealth.isRateLimited(new Error('invalid API key'))).toBe(false);
+    expect(providerChain().map((p) => p.name)).toEqual(['gemini', 'groq']);
   });
 });

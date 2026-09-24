@@ -3,14 +3,14 @@ const logger = require('../utils/logger');
 const schema = require('./schema.json');
 const checkboxMap = require('../docgen/checkboxMap.json');
 const mockExtractor = require('./mockExtractor');
-const providerHealth = require('./providerHealth');
 
 const gemini = require('./gemini');
 const groq = require('./groq');
-const huggingface = require('./huggingface');
 
-// Blueprint 7.2: Gemini first, then Groq, then Hugging Face.
-const CHAIN = [gemini, groq, huggingface];
+// Gemini leads: it rotates across models for ~200 requests/day and its
+// per-minute token budget is the only one large enough for an hour-long
+// transcript. Groq is the faster second for everything that fits in 8k tokens.
+const CHAIN = [gemini, groq];
 
 const STRING_FIELDS = Object.entries(schema.properties)
   .filter(([, v]) => v.type === 'string')
@@ -130,9 +130,7 @@ function normalize(raw, { meeting } = {}) {
  */
 function providerChain() {
   if (env.FORCE_MOCK_LLM) return [];
-  return CHAIN.filter(
-    (p) => p.isConfigured() && !providerHealth.isOnCooldown(p.name)
-  );
+  return CHAIN.filter((p) => p.isConfigured());
 }
 
 /**
@@ -148,10 +146,8 @@ async function extractCBD({ transcript, meeting }, options = {}) {
     try {
       logger.info({ provider: provider.name }, 'Extracting CBD fields');
       const raw = await provider.extract({ transcript, meeting });
-      providerHealth.noteResult(provider.name, null);
       return normalize(raw, { meeting });
     } catch (err) {
-      providerHealth.noteResult(provider.name, err);
       errors.push(`${provider.name}: ${err.message}`);
       logger.warn(
         { provider: provider.name, err: err.message },
@@ -176,6 +172,4 @@ async function extractCBD({ transcript, meeting }, options = {}) {
   return result;
 }
 
-module.exports = {
-  extractCBD, normalize, providerChain, CHAIN, VALID, STRING_FIELDS, providerHealth,
-};
+module.exports = { extractCBD, normalize, providerChain, CHAIN, VALID, STRING_FIELDS };

@@ -1,4 +1,3 @@
-require('isomorphic-fetch');
 const { Client } = require('@microsoft/microsoft-graph-client');
 
 /** A Graph client bound to an already-acquired token. */
@@ -9,7 +8,4 @@ function graphClient(accessToken) {
   });
 }
 
-const statusOf = (err) =>
-  err && (err.statusCode || err.status || (err.response && err.response.status));
-
-module.exports = { graphClient, statusOf };
+module.exports = { graphClient };

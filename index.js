@@ -6,7 +6,6 @@ const { env, assertRealModeConfig } = require('./src/config/env');
 const logger = require('./src/utils/logger');
 const { CbdBot } = require('./src/bot/teamsBot');
 const { webhookRouter } = require('./src/routes/webhook');
-const { outlookActionRouter } = require('./src/routes/outlookAction');
 const { renewAll } = require('./src/graph/subscriptions');
 const { purgeExpired } = require('./src/retention');
 
@@ -43,7 +42,6 @@ function main() {
     adapter.process(req, res, (context) => bot.run(context))
   );
   app.use('/api', webhookRouter(adapter));
-  app.use('/api', outlookActionRouter());
 
   app.listen(env.PORT, () => {
     logger.info(

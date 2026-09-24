@@ -1,7 +1,6 @@
 const { env } = require('../config/env');
 const logger = require('../utils/logger');
 const { buildUncertainMeetingCard } = require('../bot/cards');
-const { recordSkip } = require('../db/skippedTitles');
 
 // meetingId -> { meeting, userId, timer, resolve }
 const pending = new Map();
@@ -48,10 +47,6 @@ function settle(meetingId, userId, answer, title) {
   if (!entry) return false;
   clearTimeout(entry.timer);
   pending.delete(id);
-  if (!answer) {
-    // Feeds the future learning layer (blueprint section 5.4).
-    recordSkip(userId, title || entry.title);
-  }
   entry.resolve(Boolean(answer));
   return true;
 }
