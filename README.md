@@ -22,8 +22,99 @@ writes real documents to `dist/output/` — open one in Word to see the result.
 
 ```bash
 node scripts/testE2E.js client-meeting   # one fixture
+node scripts/testE2E.js --real           # same run, but against the live LLMs
 npm test                                  # unit tests
 ```
+
+`testE2E.js` checks the pipeline's plumbing — filter decision, document
+generation, the XML actually inside the `.docx`, the database row — so it runs
+on the offline extractor by default. That keeps its assertions deterministic and
+stops a routine run from spending real daily quota. `--real` exercises the live
+provider chain when that is what you want to test.
+
+## Draft a brief from your own transcript
+
+```bash
+node scripts/brief.js path/to/meeting.vtt --title "Acme x Dramantram - Kickoff"
+```
+
+Takes a Teams `.vtt` export or a plain `.txt` of notes, prints every extracted
+field with its confidence score, and writes the `.docx`. No Teams, no Graph, no
+Azure. Useful flags:
+
+| Flag | Why |
+|---|---|
+| `--title` | The meeting title is the best source of the client name |
+| `--owner` / `--email` / `--phone` | Fill the project-owner row |
+| `--attendee "Name:email@client.com"` | Comma-separate several; drives SPOC matching |
+| `--provider gemini\|groq\|huggingface\|mock` | Force one, instead of the usual chain |
+| `--print-prompt` | See exactly what would be sent to the model |
+| `--json` | Write the extracted JSON beside the document |
+
+### Turning on real extraction
+
+Extraction is gated on an API key, **not** on `MOCK_MODE`, so you get a real
+model while Teams and Graph stay stubbed:
+
+1. Get a free key at [aistudio.google.com](https://aistudio.google.com/apikey).
+2. Put it in `.env` as `GEMINI_API_KEY=...`.
+3. Re-run `scripts/brief.js`. It prints which provider answered.
+
+With no key it uses the offline heuristic extractor and says so in yellow. That
+extractor is for development only — it is regex heuristics, and on an unfamiliar
+transcript it misses things a model catches. `FORCE_MOCK_LLM=true` keeps it in
+use even when a key is present.
+
+### Staying inside the free tiers
+
+Gemini's free quota is granted **per model**, not per project — the quota id in
+the 429 reads `GenerateRequestsPerDayPerProjectPerModel`. So the bot rotates
+through a list (`GEMINI_MODELS`) and a model that is used up for the day simply
+steps aside for its siblings. Measured capacity across the list: **200
+requests/day**, against ~30 meetings/day for a 30-person office.
+
+Quotas are not equal, and the cheap models win twice over:
+
+| Model | Requests/min | Requests/day |
+|---|---|---|
+| `gemini-3.5-flash-lite` | 15 | **50** |
+| `gemini-3.1-flash-lite` | 15 | **50** |
+| `gemini-3.6-flash`, `-3-flash-preview`, `-3.5/3.7/3.8-flash` | 5 | 20 |
+| any Pro model | 0 | 0 — paid only |
+
+The `-lite` models carry 2.5x the daily allowance and 3x the rate, answer in
+~4 s rather than ~26 s, and 503 far less often, while scoring identically on the
+same transcript (4.41/5). They lead the list for all three reasons.
+
+Not on the list, deliberately: the `2.5-*` models (the API returns 404, "no
+longer available to new users", even though the dashboard still lists them),
+every Pro model (no free quota at all), and `-preview` aliases of a model
+already listed — those share the parent's quota and only waste an attempt.
+
+`src/llm/modelHealth.js` decides how long each kind of refusal benches a model:
+
+| Refusal | Bench | Why |
+|---|---|---|
+| Daily quota gone | 6 h | Nothing changes until Google's reset |
+| Rate limited | the delay the API asks for | It tells us; honour it |
+| 503 overloaded | 2 min | Transient, and worst on the newest models |
+| 404 retired | forever | It is not coming back |
+| 413 too large | **not benched** | The request is the problem, not the model |
+
+That last row matters: every Groq model shares one per-minute token ceiling, so
+benching one over an oversized transcript would wrongly block later, shorter
+meetings. Instead the chain falls through to Gemini, whose per-minute budget is
+large enough for an hour-long transcript.
+
+Two measured caveats worth knowing:
+
+- **Groq cannot take a 60-minute meeting on the free tier.** Its ceiling is
+  8,000 tokens/minute and a realistic hour-long transcript costs ~11,900. It
+  returns a hard 413, not a throttle. Gemini handles those.
+- **The newest Gemini models 503 most often.** The list is deliberately ordered
+  with the `-lite` models first: measured on the same hour-long transcript they
+  were the most available, the fastest (~4 s vs ~26 s), and scored identically
+  (4.41/5). Newer is not better here.
 
 The three fixtures each prove a different branch:
 

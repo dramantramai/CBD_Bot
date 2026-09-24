@@ -131,6 +131,18 @@ async function processMeeting({
     meeting,
   });
 
+  // Outside mock mode, falling back to the offline extractor means every real
+  // provider was exhausted or down. The document still gets written - a rough
+  // draft beats nothing - but it must not look like a normal one, or a
+  // low-quality brief quietly goes to a client.
+  const degraded = cbd._provider === 'mock' && !env.MOCK_MODE;
+  if (degraded) {
+    logger.error(
+      { meetingId: meeting.id, errors: cbd._providerErrors },
+      'DEGRADED: every LLM provider failed; brief drafted by the offline extractor'
+    );
+  }
+
   const filePath = fillTemplate(cbd, { outputDir: env.OUTPUT_DIR });
 
   meetingsDb.logMeeting({
@@ -151,12 +163,17 @@ async function processMeeting({
       title: meeting.subject,
       confidenceAvg: cbd.confidenceAvg,
       needsConfirmationCount: cbd.needsConfirmation.length,
+      degradedWarning: degraded
+        ? 'Automatic extraction was unavailable - every AI provider failed or ' +
+          'hit its quota. This draft came from the basic fallback extractor and ' +
+          'needs a full manual review, not just a spot check.'
+        : '',
     }),
     filePath,
     fileName: path.basename(filePath),
   });
 
-  return { status: 'processed', verdict, meeting, cbd, filePath, transcript };
+  return { status: 'processed', verdict, meeting, cbd, filePath, transcript, degraded };
 }
 
 module.exports = { processMeeting, trimTranscript, MAX_TRANSCRIPT_CHARS };

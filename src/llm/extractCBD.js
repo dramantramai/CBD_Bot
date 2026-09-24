@@ -3,6 +3,7 @@ const logger = require('../utils/logger');
 const schema = require('./schema.json');
 const checkboxMap = require('../docgen/checkboxMap.json');
 const mockExtractor = require('./mockExtractor');
+const providerHealth = require('./providerHealth');
 
 const gemini = require('./gemini');
 const groq = require('./groq');
@@ -115,13 +116,23 @@ function normalize(raw, { meeting } = {}) {
     : 0;
   out.needsConfirmation = STRING_FIELDS.filter((f) => out.confidence[f] < 3);
   out._provider = raw._provider || 'unknown';
+  out._model = raw._model || null;
 
   return out;
 }
 
+/**
+ * The LLM gate is deliberately separate from MOCK_MODE. Graph and Teams need a
+ * whole Azure tenant to talk to, but an LLM needs one API key, so a key on its
+ * own is enough to run real extraction while everything else stays stubbed.
+ * FORCE_MOCK_LLM=true overrides that when you want the offline extractor even
+ * though a key is present.
+ */
 function providerChain() {
-  if (env.MOCK_MODE) return [];
-  return CHAIN.filter((p) => p.isConfigured());
+  if (env.FORCE_MOCK_LLM) return [];
+  return CHAIN.filter(
+    (p) => p.isConfigured() && !providerHealth.isOnCooldown(p.name)
+  );
 }
 
 /**
@@ -137,8 +148,10 @@ async function extractCBD({ transcript, meeting }, options = {}) {
     try {
       logger.info({ provider: provider.name }, 'Extracting CBD fields');
       const raw = await provider.extract({ transcript, meeting });
+      providerHealth.noteResult(provider.name, null);
       return normalize(raw, { meeting });
     } catch (err) {
+      providerHealth.noteResult(provider.name, err);
       errors.push(`${provider.name}: ${err.message}`);
       logger.warn(
         { provider: provider.name, err: err.message },
@@ -151,8 +164,8 @@ async function extractCBD({ transcript, meeting }, options = {}) {
     logger.error({ errors }, 'Every LLM provider failed; using offline extractor');
   } else {
     logger.info(
-      env.MOCK_MODE
-        ? 'MOCK_MODE on: using the offline heuristic extractor'
+      env.FORCE_MOCK_LLM
+        ? 'FORCE_MOCK_LLM is on: using the offline heuristic extractor'
         : 'No LLM API key configured: using the offline heuristic extractor'
     );
   }
@@ -163,4 +176,6 @@ async function extractCBD({ transcript, meeting }, options = {}) {
   return result;
 }
 
-module.exports = { extractCBD, normalize, providerChain, CHAIN, VALID, STRING_FIELDS };
+module.exports = {
+  extractCBD, normalize, providerChain, CHAIN, VALID, STRING_FIELDS, providerHealth,
+};

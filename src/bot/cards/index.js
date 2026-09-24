@@ -12,7 +12,13 @@ function render(template, data = {}) {
         data[key] === undefined || data[key] === null ? '' : String(data[key])
       );
     }
-    if (Array.isArray(node)) return node.map(walk);
+    if (Array.isArray(node)) {
+      // A TextBlock whose only content was an unset ${token} (e.g. an
+      // optional warning banner) renders as an empty line otherwise - drop it.
+      return node
+        .map(walk)
+        .filter((el) => !(el && el.type === 'TextBlock' && el.text === ''));
+    }
     if (node && typeof node === 'object') {
       return Object.fromEntries(
         Object.entries(node).map(([k, v]) => [k, walk(v)])

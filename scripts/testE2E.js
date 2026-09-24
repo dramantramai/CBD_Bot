@@ -13,6 +13,13 @@ process.env.MOCK_MODE = process.env.MOCK_MODE || 'true';
 // already-briefed guard and every assertion sees a clean slate.
 process.env.NODE_ENV = 'test';
 
+// This checks the pipeline's plumbing - filter, docgen, XML, database - not the
+// model's judgement. Pinning it to the offline extractor keeps the assertions
+// deterministic and stops a routine run from spending real daily quota.
+// Pass --real to exercise the live provider chain instead.
+const USE_REAL_LLM = process.argv.includes('--real');
+if (!USE_REAL_LLM) process.env.FORCE_MOCK_LLM = 'true';
+
 const fs = require('fs');
 const path = require('path');
 const PizZip = require('pizzip');
@@ -140,11 +147,14 @@ async function runFixture(name) {
 }
 
 async function main() {
-  const only = process.argv[2];
+  const only = process.argv.slice(2).find((a) => !a.startsWith('--'));
   const fixtures = only ? [only] : Object.keys(EXPECTED);
   fs.mkdirSync(path.join(__dirname, '..', 'dist', 'output'), { recursive: true });
 
-  console.log(bold('\nCBD Bot end-to-end run (MOCK_MODE)\n'));
+  console.log(
+    bold('\nCBD Bot end-to-end run') +
+      dim(USE_REAL_LLM ? '  (live LLM chain - uses real quota)\n' : '  (offline extractor)\n')
+  );
   for (const name of fixtures) {
     await runFixture(name);
   }

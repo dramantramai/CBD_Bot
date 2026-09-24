@@ -4,6 +4,13 @@
   "version": "1.4",
   "body": [
     { "type": "TextBlock", "text": "Client Brief Document ready", "weight": "Bolder", "size": "Medium" },
+    {
+      "type": "TextBlock",
+      "text": "${degradedWarning}",
+      "wrap": true,
+      "weight": "Bolder",
+      "color": "attention"
+    },
     { "type": "TextBlock", "text": "${projectName}", "wrap": true, "size": "Small", "isSubtle": true },
     {
       "type": "FactSet",
