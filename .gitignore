@@ -6,3 +6,6 @@ dist/output/*
 !dist/output/.gitkeep
 ~$*
 .DS_Store
+
+# Generated build artifact - rebuild from manifest.json + icons, don't commit
+src/manifest/*.zip

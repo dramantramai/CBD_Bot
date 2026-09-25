@@ -2,13 +2,13 @@
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
   "manifestVersion": "1.16",
   "version": "1.0.0",
-  "id": "TODO_AZURE_AD_APP_ID",
+  "id": "ebc055ba-2fe4-41f7-b4f3-11bc26b1897b",
   "packageName": "com.dramantram.cbdbot",
   "developer": {
     "name": "Dramantram Productions LLP",
     "websiteUrl": "https://www.dramantram.com",
-    "privacyUrl": "https://www.dramantram.com/privacy",
-    "termsOfUseUrl": "https://www.dramantram.com/terms"
+    "privacyUrl": "https://www.dramantram.com",
+    "termsOfUseUrl": "https://www.dramantram.com"
   },
   "icons": { "color": "color.png", "outline": "outline.png" },
   "name": {
@@ -22,7 +22,7 @@
   "accentColor": "#2B2A6E",
   "bots": [
     {
-      "botId": "TODO_AZURE_AD_APP_ID",
+      "botId": "ebc055ba-2fe4-41f7-b4f3-11bc26b1897b",
       "scopes": ["personal"],
       "isNotificationOnly": false,
       "supportsFiles": true,
@@ -38,9 +38,9 @@
     }
   ],
   "permissions": ["identity", "messageTeamMembers"],
-  "validDomains": ["TODO_your-public-domain.com"],
+  "validDomains": ["cbd-bot.dramantram.com"],
   "webApplicationInfo": {
-    "id": "TODO_AZURE_AD_APP_ID",
-    "resource": "api://TODO_your-public-domain.com/TODO_AZURE_AD_APP_ID"
+    "id": "ebc055ba-2fe4-41f7-b4f3-11bc26b1897b",
+    "resource": "api://cbd-bot.dramantram.com/ebc055ba-2fe4-41f7-b4f3-11bc26b1897b"
   }
 }
