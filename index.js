@@ -13,7 +13,12 @@ function buildAdapter() {
   const auth = new ConfigurationBotFrameworkAuthentication({
     MicrosoftAppId: env.BOT_ID,
     MicrosoftAppPassword: env.BOT_PASSWORD,
-    MicrosoftAppType: 'MultiTenant',
+    // The Azure AD app is registered single-tenant ("My organization only"),
+    // so the Bot Framework SDK must validate incoming tokens against that
+    // tenant's issuer, not the multi-tenant "common" endpoint - a mismatch
+    // here rejects every message with a 401 before it reaches the bot code.
+    MicrosoftAppType: 'SingleTenant',
+    MicrosoftAppTenantId: env.AZURE_TENANT_ID,
   });
   const adapter = new CloudAdapter(auth);
 
