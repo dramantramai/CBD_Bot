@@ -1,0 +1,46 @@
+{
+  "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
+  "manifestVersion": "1.16",
+  "version": "1.0.0",
+  "id": "ebc055ba-2fe4-41f7-b4f3-11bc26b1897b",
+  "packageName": "com.dramantram.cbdbot",
+  "developer": {
+    "name": "Dramantram Productions LLP",
+    "websiteUrl": "https://www.dramantram.com",
+    "privacyUrl": "https://www.dramantram.com",
+    "termsOfUseUrl": "https://www.dramantram.com"
+  },
+  "icons": { "color": "color.png", "outline": "outline.png" },
+  "name": {
+    "short": "CBD Bot",
+    "full": "Dramantram Client Brief Document Bot"
+  },
+  "description": {
+    "short": "Drafts Client Brief Documents from your client meetings.",
+    "full": "After a client meeting on Teams, CBD Bot reads the transcript, drafts the Dramantram Client Brief Document and sends it to you for review. Internal meetings are ignored. Fields the transcript did not clearly support are flagged for you to confirm."
+  },
+  "accentColor": "#2B2A6E",
+  "bots": [
+    {
+      "botId": "ebc055ba-2fe4-41f7-b4f3-11bc26b1897b",
+      "scopes": ["personal"],
+      "isNotificationOnly": false,
+      "supportsFiles": true,
+      "commandLists": [
+        {
+          "scopes": ["personal"],
+          "commands": [
+            { "title": "status", "description": "Show sign-in state and recent meetings" },
+            { "title": "sign in", "description": "Authorise access to client-hosted transcripts" }
+          ]
+        }
+      ]
+    }
+  ],
+  "permissions": ["identity", "messageTeamMembers"],
+  "validDomains": ["cbd-bot.dramantram.com"],
+  "webApplicationInfo": {
+    "id": "ebc055ba-2fe4-41f7-b4f3-11bc26b1897b",
+    "resource": "api://cbd-bot.dramantram.com/ebc055ba-2fe4-41f7-b4f3-11bc26b1897b"
+  }
+}

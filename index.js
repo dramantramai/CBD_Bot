@@ -43,7 +43,7 @@ function main() {
   const bot = new CbdBot();
   const app = express();
 
-  app.post('/api/messages', (req, res) =>
+  app.post('/api/messages', express.json(), (req, res) =>
     adapter.process(req, res, (context) => bot.run(context))
   );
   app.use('/api', webhookRouter(adapter));
