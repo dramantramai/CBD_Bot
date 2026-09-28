@@ -12,6 +12,14 @@ const CONNECTION_NAME = process.env.OAUTH_CONNECTION_NAME || 'GraphConnection';
 
 const hasSignedIn = (userId) => Boolean(getToken(userId));
 
+// Must exactly match the Application ID URI on the Azure AD app (Expose an
+// API) and the manifest's webApplicationInfo.resource - Teams silently rejects
+// the OAuthCard's SSO handshake if the card doesn't carry this itself.
+const TOKEN_EXCHANGE_RESOURCE = {
+  id: env.BOT_ID,
+  uri: `${env.PUBLIC_BASE_URL.replace(/^https?:\/\//, 'api://')}/${env.BOT_ID}`,
+};
+
 /**
  * Teams SSO: the client fetches a token for our app and posts it back as a
  * signin/tokenExchange invoke, which we swap for a Graph refresh token.
@@ -20,7 +28,9 @@ function buildSignInCard() {
   return CardFactory.oauthCard(
     CONNECTION_NAME,
     'Sign in',
-    'One sign-in lets me read transcripts from meetings a client hosted.'
+    'One sign-in lets me read transcripts from meetings a client hosted.',
+    undefined,
+    TOKEN_EXCHANGE_RESOURCE
   );
 }
 
