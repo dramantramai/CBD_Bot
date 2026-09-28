@@ -23,9 +23,24 @@ app**, then it picks up automatically wherever the app is already assigned
 
 | Field | Current value | Comes from |
 |---|---|---|
-| `id`, `bots[0].botId`, `webApplicationInfo.id` | `ebc055ba-2fe4-41f7-b4f3-11bc26b1897b` | Azure AD app registration's Application (client) ID |
+| `id`, `bots[0].botId` | `ebc055ba-2fe4-41f7-b4f3-11bc26b1897b` | Azure AD app registration's Application (client) ID |
 | `validDomains` | `cbd-bot.dramantram.com` | The domain in the server's `PUBLIC_BASE_URL` |
-| `webApplicationInfo.resource` | `api://cbd-bot.dramantram.com/ebc055ba-2fe4-41f7-b4f3-11bc26b1897b` | Must exactly match the **Application ID URI** set on the app registration (Expose an API). A mismatch breaks Teams SSO silently with a consent loop. |
+
+## Why there is no `webApplicationInfo`
+
+Declaring it turns on Teams SSO, and every sign-in then dies before the popup
+opens: Teams tries its silent token exchange first, that exchange returns
+`resourcematchfailed` against this registration, and Teams renders a dead
+"Something went wrong" rather than falling back to the popup. Every value the
+exchange checks - Application ID URI, the `access_as_user` scope, both
+pre-authorized Teams client IDs, the connection's Token Exchange URL, the
+manifest resource - was verified identical and it still failed.
+
+This bot never needed SSO. It needs one interactive sign-in for delegated
+Graph scopes, which the plain OAuthCard popup does. Keep all three in sync if
+anyone reconsiders: no `webApplicationInfo` here, no `tokenExchangeResource`
+in `src/bot/sso.js`, and a blank **Token Exchange URL** on the Azure Bot
+resource's OAuth connection.
 
 Icons are Dramantram's actual mask logo: `color.png` full-color at 192x192,
 `outline.png` pure white on transparent at 32x32 (Teams rejects any other
