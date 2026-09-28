@@ -108,6 +108,17 @@ class CbdBot extends TeamsActivityHandler {
     );
   }
 
+  // Teams sends this when its own SSO handshake fails (before falling back to
+  // the interactive OAuthCard popup) - the base SDK has no handler for it and
+  // 501s, silently discarding the failure code/message we need to diagnose it.
+  async onInvokeActivity(context) {
+    if (context.activity.name === 'signin/failure') {
+      logger.error({ value: context.activity.value }, 'Teams SSO signin/failure');
+      return { status: 200 };
+    }
+    return super.onInvokeActivity(context);
+  }
+
   // Teams SSO handshake.
   async handleTeamsSigninTokenExchange(context) {
     const result = await handleTokenExchange(context);
