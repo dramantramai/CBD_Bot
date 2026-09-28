@@ -108,6 +108,33 @@ class CbdBot extends TeamsActivityHandler {
       return;
     }
 
+    // TEMPORARY (remove with "debug signin"): reports whether the Token
+    // Service is holding a token for this user. Prints only presence and
+    // expiry - never the token itself.
+    if (text.startsWith('debug token')) {
+      try {
+        const client = context.turnState.get(context.adapter.UserTokenClientKey);
+        const magicCode = text.replace('debug token', '').trim() || undefined;
+        const res = await client.getUserToken(
+          context.activity.from.id,
+          CONNECTION_NAME,
+          context.activity.channelId,
+          magicCode
+        );
+        await context.sendActivity(
+          res && res.token
+            ? `Token Service HAS a token. expires: ${res.expiration || 'n/a'}, ` +
+                `length: ${res.token.length} chars.\n\n` +
+                `Local store (our SQLite): ${hasSignedIn(userId) ? 'has' : 'has NO'} entry.`
+            : 'Token Service has NO token for this user/connection.'
+        );
+      } catch (err) {
+        await context.sendActivity(`getUserToken threw: ${err.message}`);
+        logger.error({ err: err.message, stack: err.stack }, 'getUserToken failed');
+      }
+      return;
+    }
+
     if (text.includes('sign in') || text.includes('login')) {
       await context.sendActivity({ attachments: [buildSignInCard()] });
       return;
