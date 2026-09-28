@@ -19,4 +19,15 @@ function getReference(userId) {
   return row ? JSON.parse(row.reference) : null;
 }
 
-module.exports = { saveReference, getReference };
+/**
+ * Every user the bot has exchanged a message with. A superset of the signed-in
+ * ones - the Token Service holds those and offers no way to enumerate them -
+ * so callers must expect ReauthRequiredError for anyone who never signed in.
+ */
+function listUsers() {
+  return getDb()
+    .prepare('SELECT user_id, updated_at FROM conversation_refs')
+    .all();
+}
+
+module.exports = { saveReference, getReference, listUsers };

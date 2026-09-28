@@ -2,7 +2,7 @@ const { env } = require('../config/env');
 const logger = require('../utils/logger');
 const { graphClient } = require('./client');
 const auth = require('./auth');
-const { listUsers } = require('../db/tokens');
+const { listUsers } = require('../db/conversations');
 
 // Graph caps onlineMeetings subscriptions at 4230 minutes; renew well before.
 const MAX_MINUTES = 4230;
@@ -66,7 +66,7 @@ async function deleteSubscription(userId, subscriptionId) {
  * cannot stop everyone else's subscriptions being renewed.
  */
 async function renewAll() {
-  const results = { renewed: 0, created: 0, failed: 0 };
+  const results = { renewed: 0, created: 0, skipped: 0, failed: 0 };
   const cutoff = Date.now() + RENEW_BEFORE_MINUTES * 60000;
 
   for (const user of listUsers()) {
@@ -89,6 +89,12 @@ async function renewAll() {
         }
       }
     } catch (err) {
+      // Most of this list has simply never signed in, which is expected and
+      // not worth a warning every hour.
+      if (err instanceof auth.ReauthRequiredError) {
+        results.skipped += 1;
+        continue;
+      }
       results.failed += 1;
       logger.warn(
         { userId: user.user_id, err: err.message },

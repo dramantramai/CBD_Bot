@@ -42,8 +42,6 @@ const env = {
   // exactly, spaces included - the Token Service looks it up by this string.
   OAUTH_CONNECTION_NAME: process.env.OAUTH_CONNECTION_NAME || 'GraphConnection',
 
-  TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY || '',
-
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',
   // Each model carries its own free-tier daily quota, so the bot rotates
   // through this list rather than stopping at the first exhausted one.
@@ -88,7 +86,6 @@ function assertRealModeConfig() {
     'AZURE_TENANT_ID',
     'AZURE_CLIENT_ID',
     'AZURE_CLIENT_SECRET',
-    'TOKEN_ENCRYPTION_KEY',
     'PUBLIC_BASE_URL',
   ].filter((k) => !env[k]);
   if (missing.length) {

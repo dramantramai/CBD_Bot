@@ -1,12 +1,7 @@
 const { TeamsActivityHandler, TurnContext, CardFactory } = require('botbuilder');
 const logger = require('../utils/logger');
 const { buildWelcomeCard } = require('./cards');
-const {
-  buildSignInCard,
-  hasSignedIn,
-  completeSignIn,
-  CONNECTION_NAME,
-} = require('./sso');
+const { buildSignInCard, hasSignedIn, completeSignIn } = require('./sso');
 const { saveReference } = require('../db/conversations');
 const { settle } = require('../filter/uncertainPrompt');
 const { listRecent } = require('../db/meetings');
@@ -81,32 +76,6 @@ class CbdBot extends TeamsActivityHandler {
   async handleText(context) {
     const text = (context.activity.text || '').trim().toLowerCase();
     const userId = this.userIdOf(context);
-
-    // TEMPORARY (remove once sign-in works): asks the Token Service for the
-    // same link the connector puts behind the card's button, and prints it.
-    // Clicking a real URL in a real browser shows the actual Entra error;
-    // the card's button only ever says "Something went wrong".
-    if (text === 'debug signin') {
-      try {
-        const client = context.turnState.get(context.adapter.UserTokenClientKey);
-        if (!client) {
-          await context.sendActivity('No UserTokenClient on this turn.');
-          return;
-        }
-        const res = await client.getSignInResource(
-          CONNECTION_NAME,
-          context.activity,
-          undefined
-        );
-        await context.sendActivity(
-          `connection: ${CONNECTION_NAME}\n\nsignInLink:\n${res && res.signInLink}`
-        );
-      } catch (err) {
-        await context.sendActivity(`getSignInResource threw: ${err.message}`);
-        logger.error({ err: err.message, stack: err.stack }, 'getSignInResource failed');
-      }
-      return;
-    }
 
     // Teams normally intercepts the magic code and sends it as a
     // signin/verifyState invoke, but it can only do that while it has a

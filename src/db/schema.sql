@@ -1,16 +1,7 @@
 -- Blueprint section 10: data model.
 
--- Delegated auth: one encrypted refresh token per Dramantram user, captured
--- during the one-time Teams SSO sign-in.
-CREATE TABLE IF NOT EXISTS user_tokens (
-  user_id          TEXT PRIMARY KEY,   -- Azure AD object id
-  display_name     TEXT,
-  email            TEXT,
-  refresh_token    TEXT NOT NULL,      -- AES-256-GCM, see src/utils/crypto.js
-  token_expires_at TEXT,
-  created_at       TEXT NOT NULL,
-  updated_at       TEXT NOT NULL
-);
+-- Delegated auth has no table here: the Bot Framework Token Service holds the
+-- refresh tokens and rotates them, so this process stores none.
 
 -- One row per meeting the bot considered, whether or not it produced a CBD.
 CREATE TABLE IF NOT EXISTS meeting_logs (
