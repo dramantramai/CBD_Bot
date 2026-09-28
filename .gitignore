@@ -9,3 +9,8 @@ dist/output/*
 
 # Generated build artifact - rebuild from manifest.json + icons, don't commit
 src/manifest/*.zip
+*.zip
+
+# VM access. These are credentials and must never reach the remote.
+*.key
+*.key.pub
