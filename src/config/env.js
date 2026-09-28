@@ -38,6 +38,10 @@ const env = {
   PUBLIC_BASE_URL: process.env.PUBLIC_BASE_URL || '',
   WEBHOOK_CLIENT_STATE: process.env.WEBHOOK_CLIENT_STATE || '',
 
+  // Name of the OAuth connection on the Azure Bot resource. Must match it
+  // exactly, spaces included - the Token Service looks it up by this string.
+  OAUTH_CONNECTION_NAME: process.env.OAUTH_CONNECTION_NAME || 'GraphConnection',
+
   TOKEN_ENCRYPTION_KEY: process.env.TOKEN_ENCRYPTION_KEY || '',
 
   GEMINI_API_KEY: process.env.GEMINI_API_KEY || '',

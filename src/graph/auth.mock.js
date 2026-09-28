@@ -1,5 +1,3 @@
-const logger = require('../utils/logger');
-
 class ReauthRequiredError extends Error {
   constructor(userId) {
     super(`No valid delegated token for user ${userId}; re-sign-in required.`);
@@ -16,15 +14,12 @@ async function getDelegatedToken(userId) {
   return `mock-delegated-token-for-${userId}`;
 }
 
-async function exchangeSsoToken(ssoToken, user) {
-  logger.info({ userId: user && user.id }, 'MOCK: pretended to store a refresh token');
-  return 'mock-delegated-token';
-}
+const setAdapter = () => {};
 
 module.exports = {
   getAppToken,
   getDelegatedToken,
-  exchangeSsoToken,
+  setAdapter,
   ReauthRequiredError,
   DELEGATED_SCOPES: [],
 };

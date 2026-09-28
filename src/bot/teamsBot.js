@@ -3,8 +3,8 @@ const logger = require('../utils/logger');
 const { buildWelcomeCard } = require('./cards');
 const {
   buildSignInCard,
-  handleTokenExchange,
   hasSignedIn,
+  completeSignIn,
   CONNECTION_NAME,
 } = require('./sso');
 const { saveReference } = require('../db/conversations');
@@ -108,30 +108,13 @@ class CbdBot extends TeamsActivityHandler {
       return;
     }
 
-    // TEMPORARY (remove with "debug signin"): reports whether the Token
-    // Service is holding a token for this user. Prints only presence and
-    // expiry - never the token itself.
-    if (text.startsWith('debug token')) {
-      try {
-        const client = context.turnState.get(context.adapter.UserTokenClientKey);
-        const magicCode = text.replace('debug token', '').trim() || undefined;
-        const res = await client.getUserToken(
-          context.activity.from.id,
-          CONNECTION_NAME,
-          context.activity.channelId,
-          magicCode
-        );
-        await context.sendActivity(
-          res && res.token
-            ? `Token Service HAS a token. expires: ${res.expiration || 'n/a'}, ` +
-                `length: ${res.token.length} chars.\n\n` +
-                `Local store (our SQLite): ${hasSignedIn(userId) ? 'has' : 'has NO'} entry.`
-            : 'Token Service has NO token for this user/connection.'
-        );
-      } catch (err) {
-        await context.sendActivity(`getUserToken threw: ${err.message}`);
-        logger.error({ err: err.message, stack: err.stack }, 'getUserToken failed');
-      }
+    // Teams normally intercepts the magic code and sends it as a
+    // signin/verifyState invoke, but it can only do that while it has a
+    // pending card session. If that correlation is lost the code arrives as
+    // an ordinary message instead, and without this it would fall through to
+    // the help text with the sign-in left half-finished.
+    if (/^\d{6}$/.test(text)) {
+      await this.finishSignIn(context, text);
       return;
     }
 
@@ -141,7 +124,7 @@ class CbdBot extends TeamsActivityHandler {
     }
 
     if (text.includes('status')) {
-      const signedIn = hasSignedIn(userId);
+      const signedIn = await hasSignedIn(context);
       const recent = listRecent(5).filter((r) => r.user_id === userId);
       await context.sendActivity(
         [
@@ -177,17 +160,19 @@ class CbdBot extends TeamsActivityHandler {
     return super.onInvokeActivity(context);
   }
 
-  // Teams SSO handshake.
-  async handleTeamsSigninTokenExchange(context) {
-    const result = await handleTokenExchange(context);
-    if (result.status === 200) {
-      await context.sendActivity("You're all set. I'll take it from here.");
-    }
-    return result;
+  // Teams posts the magic code back here once the popup closes.
+  async handleTeamsSigninVerifyState(context) {
+    const value = context.activity.value || {};
+    await this.finishSignIn(context, value.state);
   }
 
-  async handleTeamsSigninVerifyState(context) {
-    await context.sendActivity("You're all set. I'll take it from here.");
+  async finishSignIn(context, magicCode) {
+    const ok = await completeSignIn(context, magicCode);
+    await context.sendActivity(
+      ok
+        ? "You're all set. I'll take it from here."
+        : 'That sign-in did not complete. Say "sign in" to start again.'
+    );
   }
 }
 

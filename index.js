@@ -3,6 +3,7 @@ const cron = require('node-cron');
 const { CloudAdapter, ConfigurationBotFrameworkAuthentication } = require('botbuilder');
 
 const { env, assertRealModeConfig } = require('./src/config/env');
+const adapters = require('./src/config/adapters');
 const logger = require('./src/utils/logger');
 const { CbdBot } = require('./src/bot/teamsBot');
 const { webhookRouter } = require('./src/routes/webhook');
@@ -40,6 +41,10 @@ function main() {
   }
 
   const adapter = buildAdapter();
+  // Delegated Graph tokens come from the Bot Framework Token Service, whose
+  // client is only reachable through a turn - background callers reopen the
+  // user's conversation to get one.
+  adapters.auth.setAdapter(adapter);
   const bot = new CbdBot();
   const app = express();
 
