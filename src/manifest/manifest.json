@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
   "manifestVersion": "1.16",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "id": "ebc055ba-2fe4-41f7-b4f3-11bc26b1897b",
   "packageName": "com.dramantram.cbdbot",
   "developer": {
@@ -38,5 +38,5 @@
     }
   ],
   "permissions": ["identity", "messageTeamMembers"],
-  "validDomains": ["cbd-bot.dramantram.com"]
+  "validDomains": ["cbd-bot.dramantram.com", "token.botframework.com"]
 }
