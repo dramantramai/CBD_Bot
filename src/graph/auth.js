@@ -1,5 +1,6 @@
 const msal = require('@azure/msal-node');
 const { env } = require('../config/env');
+const logger = require('../utils/logger');
 const { getReference } = require('../db/conversations');
 
 // Blueprint 4.3. Application permissions cover Dramantram-hosted meetings;
@@ -68,21 +69,48 @@ async function getDelegatedToken(userId) {
   }
 
   const reference = getReference(userId);
-  if (!reference) throw new ReauthRequiredError(userId);
+  if (!reference) {
+    logger.warn({ userId }, 'No conversation reference; user has never messaged the bot');
+    throw new ReauthRequiredError(userId);
+  }
 
   let token = null;
   await adapter.continueConversationAsync(env.BOT_ID, reference, async (context) => {
     const tokenClient = context.turnState.get(context.adapter.UserTokenClientKey);
-    const result = await tokenClient.getUserToken(
-      reference.user.id,
-      env.OAUTH_CONNECTION_NAME,
-      reference.channelId,
-      undefined
-    );
-    token = result && result.token;
+    if (!tokenClient) {
+      logger.error({ userId }, 'No UserTokenClient on the proactive turn');
+      return;
+    }
+    try {
+      const result = await tokenClient.getUserToken(
+        reference.user.id,
+        env.OAUTH_CONNECTION_NAME,
+        reference.channelId,
+        undefined
+      );
+      token = result && result.token;
+    } catch (err) {
+      logger.error(
+        { userId, tokenUserId: reference.user.id, err: err.message },
+        'Token Service rejected the lookup'
+      );
+    }
   });
 
-  if (!token) throw new ReauthRequiredError(userId);
+  if (!token) {
+    // Logged with the exact lookup keys: the Token Service stores tokens
+    // against the channel user id, which is not the id this bot keys on.
+    logger.warn(
+      {
+        userId,
+        tokenUserId: reference.user.id,
+        channelId: reference.channelId,
+        connection: env.OAUTH_CONNECTION_NAME,
+      },
+      'Token Service returned no token'
+    );
+    throw new ReauthRequiredError(userId);
+  }
   return token;
 }
 

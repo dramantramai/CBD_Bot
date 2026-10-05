@@ -61,6 +61,12 @@ function main() {
   });
 
   if (!env.MOCK_MODE) {
+    // Also on boot, so a deploy picks up anyone who signed in since the last
+    // pass instead of leaving them unsubscribed until the top of the hour.
+    renewAll().catch((err) =>
+      logger.error({ err: err.message }, 'Startup subscription pass failed')
+    );
+
     // Graph subscriptions expire after ~3 days, so they are renewed hourly and
     // users who signed in since the last pass get subscribed.
     cron.schedule('0 * * * *', () => {
