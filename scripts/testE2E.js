@@ -27,12 +27,15 @@ const { processMeeting } = require('../src/pipeline');
 const { NEEDS_CONFIRMATION } = require('../src/docgen/fillTemplate');
 const meetingsDb = require('../src/db/meetings');
 
-// What each fixture is meant to prove.
+// What each fixture is meant to prove. Anything not listed - a real meeting
+// dropped in to test against - is assumed to be a brief-worthy client meeting,
+// so adding one needs no edit here.
 const EXPECTED = {
   'client-meeting': { status: 'processed', answerUncertain: null },
   'internal-standup': { status: 'skipped', answerUncertain: null },
   'ambiguous-meeting': { status: 'processed', answerUncertain: true },
 };
+const DEFAULT_EXPECTATION = { status: 'processed', answerUncertain: true };
 
 const bold = (s) => `\x1b[1m${s}\x1b[0m`;
 const green = (s) => `\x1b[32m${s}\x1b[0m`;
@@ -57,7 +60,7 @@ function check(label, passed, detail) {
 }
 
 async function runFixture(name) {
-  const expected = EXPECTED[name] || {};
+  const expected = EXPECTED[name] || DEFAULT_EXPECTATION;
   console.log('\n' + bold(`── ${name} ─────────────────────────────────`));
 
   const result = await processMeeting({

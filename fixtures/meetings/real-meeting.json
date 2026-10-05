@@ -1,0 +1,29 @@
+{
+  "_comment": "A real meeting captured for repeat testing. Replace the values below with the actual meeting's, drop its .vtt into fixtures/transcripts/, and run: node scripts/testE2E.js real-meeting --real",
+  "id": "real-meeting-001",
+  "subject": "REPLACE - the real meeting title",
+  "joinUrl": "https://teams.microsoft.com/l/meetup-join/placeholder",
+  "startDateTime": "2026-10-05T10:00:00Z",
+  "endDateTime": "2026-10-05T10:06:00Z",
+  "hostedBy": "external",
+  "organizer": {
+    "identity": {
+      "user": {
+        "id": "replace-organizer-id",
+        "displayName": "REPLACE - organizer name",
+        "email": "REPLACE@client-domain.com"
+      }
+    }
+  },
+  "dramantramUser": {
+    "id": "replace-with-your-aad-object-id",
+    "displayName": "Dev Maheshwari",
+    "email": "dev@dramantram.com",
+    "phone": "+91 98100 00000"
+  },
+  "attendees": [
+    { "displayName": "REPLACE - client person", "email": "REPLACE@client-domain.com", "role": "organizer" },
+    { "displayName": "Dev Maheshwari", "email": "dev@dramantram.com", "role": "attendee" }
+  ],
+  "transcriptFixture": "real-meeting-1.vtt"
+}
