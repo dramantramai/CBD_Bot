@@ -11,15 +11,21 @@ const RENEW_BEFORE_MINUTES = 60;
 const expiry = (minutes = MAX_MINUTES) =>
   new Date(Date.now() + minutes * 60000).toISOString();
 
-const notificationUrl = () => {
+const baseUrl = () => {
   if (!env.PUBLIC_BASE_URL) {
     throw new Error(
       'PUBLIC_BASE_URL is not set. Graph needs a public HTTPS endpoint to post ' +
         'change notifications to. See .env.example.'
     );
   }
-  return `${env.PUBLIC_BASE_URL.replace(/\/$/, '')}/api/webhook`;
+  return env.PUBLIC_BASE_URL.replace(/\/$/, '');
 };
+
+const notificationUrl = () => `${baseUrl()}/api/webhook`;
+
+// Graph refuses to create a subscription lasting over an hour without
+// somewhere to send lifecycle events, and these last ~70 hours.
+const lifecycleNotificationUrl = () => `${baseUrl()}/api/lifecycle`;
 
 /**
  * Subscribes to a user's meeting transcripts. Graph fires when a transcript
@@ -33,6 +39,7 @@ async function subscribeForUser(userId) {
   const subscription = await client.api('/subscriptions').post({
     changeType: 'created',
     notificationUrl: notificationUrl(),
+    lifecycleNotificationUrl: lifecycleNotificationUrl(),
     resource: `/users/${userId}/onlineMeetings/getAllTranscripts`,
     expirationDateTime: expiry(),
     clientState: env.WEBHOOK_CLIENT_STATE,
