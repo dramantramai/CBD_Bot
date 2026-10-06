@@ -5,6 +5,22 @@ const { processMeeting } = require('../pipeline');
 const { renewAll } = require('../graph/subscriptions');
 
 /**
+ * Pulls an id out of a notification's resource path.
+ *
+ * Graph sends these OData style - users('<id>')/onlineMeetings('<id>') - not
+ * as plain path segments, and quietly dropping notifications it could not
+ * parse is indistinguishable from never being notified at all. The quoted
+ * form is matched first and on its quotes, because a meeting id is base64 and
+ * may legitimately contain a slash.
+ */
+function resourceSegment(resource, name) {
+  const quoted = resource.match(new RegExp(`${name}\\('([^']+)'\\)`));
+  if (quoted) return quoted[1];
+  const path = resource.match(new RegExp(`${name}/([^/]+)`));
+  return path ? path[1] : undefined;
+}
+
+/**
  * Receives Graph change notifications. Graph expects a 202 within 3 seconds, so
  * the reply goes out first and the meeting is processed afterwards.
  */
@@ -28,10 +44,9 @@ function webhookRouter(botAdapter) {
         continue;
       }
 
-      // resource looks like: users/{userId}/onlineMeetings/{meetingId}/transcripts/{id}
       const resource = String(note.resource || '');
-      const userId = (resource.match(/users\/([^/]+)/) || [])[1];
-      const meetingId = (resource.match(/onlineMeetings\/([^/]+)/) || [])[1];
+      const userId = resourceSegment(resource, 'users');
+      const meetingId = resourceSegment(resource, 'onlineMeetings');
 
       if (!userId || !meetingId) {
         logger.warn({ resource }, 'Notification missing user or meeting id');
@@ -95,4 +110,4 @@ function webhookRouter(botAdapter) {
   return router;
 }
 
-module.exports = { webhookRouter };
+module.exports = { webhookRouter, resourceSegment };
