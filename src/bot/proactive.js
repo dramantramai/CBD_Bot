@@ -1,3 +1,4 @@
+const fs = require('fs');
 const { CardFactory } = require('botbuilder');
 const logger = require('../utils/logger');
 const { getReference } = require('../db/conversations');
@@ -38,17 +39,36 @@ const sendCard = (adapter, userId, card) =>
 
 const sendText = (adapter, userId, text) => sendToUser(adapter, userId, { text });
 
-/** Teams cannot take a local file path, so documents go up as an attachment. */
+/**
+ * A bot cannot push a file into a chat directly. Teams' flow is to offer it
+ * and let the user accept, which yields a one-off upload URL into their own
+ * OneDrive - so the document lands somewhere they own rather than on a share
+ * the bot has to host and secure. The upload itself happens in
+ * teamsBot.handleTeamsFileConsentAccept.
+ */
 async function sendDocument(adapter, userId, { card, filePath, fileName }) {
   await sendCard(adapter, userId, card);
-  // TODO(deployment): serving the .docx requires either a Graph upload to the
-  // user's OneDrive or a public download URL on PUBLIC_BASE_URL. Wire whichever
-  // the tenant allows once the Oracle VM and Azure app exist.
-  await sendText(
-    adapter,
-    userId,
-    `Document saved as **${fileName}** (\`${filePath}\`).`
-  );
+
+  if (!fs.existsSync(filePath)) {
+    logger.error({ filePath }, 'Document missing when offering it to the user');
+    await sendText(adapter, userId, `I generated **${fileName}** but can no longer find it on disk.`);
+    return;
+  }
+
+  await sendToUser(adapter, userId, {
+    attachments: [
+      {
+        contentType: 'application/vnd.microsoft.teams.card.file.consent',
+        name: fileName,
+        content: {
+          description: 'Your Client Brief Document',
+          sizeInBytes: fs.statSync(filePath).size,
+          acceptContext: { filePath, fileName },
+          declineContext: { fileName },
+        },
+      },
+    ],
+  });
 }
 
 module.exports = { sendToUser, sendCard, sendText, sendDocument, NoConversationError };

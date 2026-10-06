@@ -1,3 +1,4 @@
+const fs = require('fs');
 const { TeamsActivityHandler, TurnContext, CardFactory } = require('botbuilder');
 const logger = require('../utils/logger');
 const { buildWelcomeCard } = require('./cards');
@@ -127,6 +128,59 @@ class CbdBot extends TeamsActivityHandler {
       return { status: 200 };
     }
     return super.onInvokeActivity(context);
+  }
+
+  /**
+   * The user accepted the document. Teams hands back a short-lived upload URL
+   * pointing into their own OneDrive; writing the bytes there is what actually
+   * puts the file in the chat.
+   */
+  async handleTeamsFileConsentAccept(context, response) {
+    const { filePath, fileName } = response.context || {};
+    const upload = response.uploadInfo || {};
+
+    try {
+      const data = fs.readFileSync(filePath);
+      const res = await fetch(upload.uploadUrl, {
+        method: 'PUT',
+        headers: {
+          'Content-Length': String(data.length),
+          'Content-Range': `bytes 0-${data.length - 1}/${data.length}`,
+        },
+        body: data,
+      });
+      if (!res.ok) throw new Error(`upload returned HTTP ${res.status}`);
+
+      await context.sendActivity({
+        attachments: [
+          {
+            contentType: 'application/vnd.microsoft.teams.card.file.info',
+            contentUrl: upload.contentUrl,
+            name: upload.name,
+            content: { uniqueId: upload.uniqueId, fileType: upload.fileType },
+          },
+        ],
+      });
+      logger.info({ fileName }, 'Document uploaded to the user');
+    } catch (err) {
+      logger.error({ fileName, filePath, err: err.message }, 'Document upload failed');
+      await context.sendActivity(
+        `I couldn't upload **${fileName}**. ${
+          // Briefs are purged on a retention schedule, so an old card can
+          // outlive the file it points at.
+          err.code === 'ENOENT'
+            ? 'It has already been cleared from the server.'
+            : 'Say "sign in" if the problem persists and I will try again.'
+        }`
+      );
+    }
+  }
+
+  async handleTeamsFileConsentDecline(context, response) {
+    const { fileName } = response.context || {};
+    await context.sendActivity(
+      `No problem - **${fileName}** stays on the server and I won't send it.`
+    );
   }
 
   // Teams posts the magic code back here once the popup closes.
