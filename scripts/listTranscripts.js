@@ -33,14 +33,31 @@ async function main() {
   console.log(`HTTP ${res.status}\n`);
 
   if (res.status === 403) {
-    console.error(
-      'Forbidden. App-only access to online meetings also needs a Teams\n' +
-        'application access policy granting this app rights over the user:\n\n' +
-        '  New-CsApplicationAccessPolicy -Identity cbd-bot -AppIds "<app-id>" \\\n' +
-        '    -Description "CBD Bot transcript access"\n' +
-        `  Grant-CsApplicationAccessPolicy -PolicyName cbd-bot -Identity ${userId}\n\n` +
-        'Run those in Teams PowerShell; the grant can take ~30 minutes to apply.'
-    );
+    const inner = (body.error && body.error.innerError) || {};
+
+    // A tenant switch Microsoft began enforcing on 29 July 2026, off by
+    // default. It sits above app permissions, so every permission can be
+    // correct and granted and transcripts still return 403.
+    if (inner.code === 'GraphAccessToTranscriptsDisabled') {
+      console.error(
+        'This tenant blocks Graph access to transcripts. No permission or\n' +
+          'code change gets around it - a Teams admin has to turn it on:\n\n' +
+          '  Teams admin center > Meetings > Meeting settings >\n' +
+          '  Transcript API access > Microsoft Graph access = On\n\n' +
+          'Enable speaker attribution there too, or transcripts arrive with\n' +
+          'no speaker names and the extraction cannot tell who owns what.'
+      );
+    } else {
+      console.error(
+        'Forbidden. App-only access to online meetings also needs a Teams\n' +
+          'application access policy granting this app rights over the user:\n\n' +
+          '  New-CsApplicationAccessPolicy -Identity cbd-bot -AppIds "<app-id>" \\\n' +
+          '    -Description "CBD Bot transcript access"\n' +
+          `  Grant-CsApplicationAccessPolicy -PolicyName cbd-bot -Identity ${userId}\n\n` +
+          'Run those in Teams PowerShell; the grant can take ~30 minutes to apply.'
+      );
+    }
+
     console.error('\nGraph said:', JSON.stringify(body, null, 2));
     process.exit(1);
   }
