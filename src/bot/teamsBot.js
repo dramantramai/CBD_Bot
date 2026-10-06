@@ -13,7 +13,7 @@ const awaitingNotes = new Map();
 const NOTES_WINDOW_MS = 10 * 60 * 1000;
 const MIN_NOTES_CHARS = 200;
 const { buildWelcomeCard } = require('./cards');
-const { buildSignInCard, hasSignedIn, completeSignIn } = require('./sso');
+const { sendSignInPrompt, hasSignedIn, completeSignIn } = require('./sso');
 const { saveReference } = require('../db/conversations');
 const { settle } = require('../filter/uncertainPrompt');
 const { listRecent } = require('../db/meetings');
@@ -119,7 +119,7 @@ class CbdBot extends TeamsActivityHandler {
     const userId = this.userIdOf(context);
 
     if (value.action === 'signin') {
-      await context.sendActivity({ attachments: [buildSignInCard()] });
+      await sendSignInPrompt(context);
       return;
     }
 
@@ -194,7 +194,7 @@ class CbdBot extends TeamsActivityHandler {
     }
 
     if (text.includes('sign in') || text.includes('login')) {
-      await context.sendActivity({ attachments: [buildSignInCard()] });
+      await sendSignInPrompt(context);
       return;
     }
 
