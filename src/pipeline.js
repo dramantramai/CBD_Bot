@@ -1,4 +1,5 @@
 const path = require('path');
+const { randomUUID } = require('crypto');
 const { env } = require('./config/env');
 const adapters = require('./config/adapters');
 const logger = require('./utils/logger');
@@ -125,7 +126,14 @@ async function processMeeting({
     return { status: 'no_transcript', verdict, meeting };
   }
 
-  // ── extract and generate ────────────────────────────────────────────────
+  return generateAndDeliver({ transcript, meeting, attendeeId, botAdapter, verdict });
+}
+
+/**
+ * Extract, fill the template, log and send. Shared by the Graph-driven path
+ * and by a transcript handed to the bot directly.
+ */
+async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter, verdict }) {
   const cbd = await extractCBD({
     transcript: trimTranscript(transcript.text),
     meeting,
@@ -176,4 +184,37 @@ async function processMeeting({
   return { status: 'processed', verdict, meeting, cbd, filePath, transcript, degraded };
 }
 
-module.exports = { processMeeting, trimTranscript, MAX_TRANSCRIPT_CHARS };
+/**
+ * Briefs a transcript handed straight to the bot, with no Graph lookup and no
+ * filter.
+ *
+ * A transcript belongs to the meeting, which lives in the organiser's tenant,
+ * so when a client hosts there is nothing for this tenant to fetch. Someone
+ * passing the transcript along is the only route to a brief for those
+ * meetings - and they are the ones the bot exists for.
+ *
+ * Nothing here is inferred about attendees or duration, so the filter is
+ * skipped entirely: asking for a brief IS the decision the filter would make.
+ */
+async function briefFromText({ text, title, userId, botAdapter, source = 'manual' }) {
+  if (!text || !text.trim()) throw new Error('No transcript text supplied');
+
+  const meeting = {
+    id: `manual-${randomUUID()}`,
+    subject: title || 'Untitled meeting',
+    hostedBy: 'external',
+    dramantramUser: { id: userId },
+  };
+
+  logger.info({ userId, source, chars: text.length }, 'Briefing a supplied transcript');
+
+  return generateAndDeliver({
+    transcript: { text, source },
+    meeting,
+    attendeeId: userId,
+    botAdapter,
+    verdict: { decision: 'process', reason: 'supplied_by_user' },
+  });
+}
+
+module.exports = { processMeeting, briefFromText, trimTranscript, MAX_TRANSCRIPT_CHARS };

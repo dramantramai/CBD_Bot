@@ -1,7 +1,7 @@
 {
   "$schema": "https://developer.microsoft.com/en-us/json-schemas/teams/v1.16/MicrosoftTeams.schema.json",
   "manifestVersion": "1.16",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "id": "ebc055ba-2fe4-41f7-b4f3-11bc26b1897b",
   "packageName": "com.dramantram.cbdbot",
   "developer": {
@@ -31,7 +31,8 @@
           "scopes": ["personal"],
           "commands": [
             { "title": "status", "description": "Show sign-in state and recent meetings" },
-            { "title": "sign in", "description": "Authorise access to client-hosted transcripts" }
+            { "title": "brief", "description": "Draft a CBD from a transcript or notes you send me" },
+            { "title": "sign in", "description": "Authorise access to meeting transcripts" }
           ]
         }
       ]
