@@ -26,13 +26,15 @@ const PizZip = require('pizzip');
 const { processMeeting } = require('../src/pipeline');
 const { NEEDS_CONFIRMATION } = require('../src/docgen/fillTemplate');
 const meetingsDb = require('../src/db/meetings');
+const { formatBrief, splitMessages } = require('../src/brief/format');
 
 // What each fixture is meant to prove. Anything not listed - a real meeting
 // dropped in to test against - is assumed to be a brief-worthy client meeting,
 // so adding one needs no edit here.
 const EXPECTED = {
   'client-meeting': { status: 'processed', answerUncertain: true },
-  'internal-standup': { status: 'skipped', answerUncertain: null },
+  'internal-standup': { status: 'skipped', answerUncertain: null }, // 12 minutes: too short
+  'internal-planning': { status: 'processed', answerUncertain: true }, // a meeting brief
   'ambiguous-meeting': { status: 'processed', answerUncertain: true },
 };
 const DEFAULT_EXPECTATION = { status: 'processed', answerUncertain: true };
@@ -59,6 +61,28 @@ function check(label, passed, detail) {
   console.log(`   ${mark}  ${label}${detail ? dim('  ' + detail) : ''}`);
 }
 
+// A meeting brief has no document, so there is no docx to inspect - just the brief itself.
+function checkMeetingBrief(result) {
+  const { brief } = result;
+  check('a meeting brief was produced', Boolean(brief));
+  if (brief.noModel) {
+    check(
+      'offline, it says it was drafted without AI and invents nothing',
+      brief.actionItems.length === 0 && brief.decisions.length === 0
+    );
+  } else {
+    check('the brief has a summary', brief.summary.length > 0);
+    check('every action item quotes the transcript', brief.actionItems.every((a) => a.quote));
+    console.log(dim(`\n   ${brief.actionItems.length} action items, ${brief.decisions.length} decisions, ` +
+      `${brief.openQuestions.length} open questions, ${brief.unverified} left out as unverifiable\n`));
+    for (const m of splitMessages(formatBrief(brief))) console.log(m.replace(/^/gm, '   '));
+  }
+  const row = meetingsDb
+    .findByMeetingId(result.meeting.id, result.meeting.dramantramUser?.id)
+    .find((r) => r.cbd_generated === 1);
+  check('meeting_logs records a meeting brief', Boolean(row) && row.output_kind === 'meeting_brief');
+}
+
 async function runFixture(name) {
   const expected = EXPECTED[name] || DEFAULT_EXPECTATION;
   console.log('\n' + bold(`── ${name} ─────────────────────────────────`));
@@ -67,8 +91,9 @@ async function runFixture(name) {
     fixture: name,
     // Stands in for the user tapping Yes/No on the "was this a client meeting?"
     // card, so the uncertain branch is exercised without a Teams client.
-    onConfirm: async (meeting) => {
-      console.log(dim(`   (bot asked: generate a client brief for "${meeting.subject}"?)`));
+    onConfirm: async (meeting, verdict) => {
+      const what = verdict && verdict.kind === 'meeting' ? 'meeting brief' : 'client brief';
+      console.log(dim(`   (bot asked: generate a ${what} for "${meeting.subject}"?)`));
       return expected.answerUncertain === true;
     },
   });
@@ -81,6 +106,11 @@ async function runFixture(name) {
   );
 
   if (result.status !== 'processed') return;
+
+  if (result.kind === 'meeting') {
+    checkMeetingBrief(result);
+    return;
+  }
 
   const { cbd, filePath } = result;
   console.log(dim(`   provider: ${cbd._provider}  ·  avg confidence: ${cbd.confidenceAvg}/5`));

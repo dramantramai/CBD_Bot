@@ -10,9 +10,10 @@ CREATE TABLE IF NOT EXISTS meeting_logs (
   meeting_title     TEXT,
   user_id           TEXT,
   hosted_by         TEXT,  -- 'dramantram' | 'external'
-  filter_result     TEXT,  -- 'processed' | 'skipped_internal' | 'skipped_short' | 'skipped_user'
+  filter_result     TEXT,  -- 'processed' | 'skipped_short' | 'skipped_user' | 'unresolved_attendees'
   transcript_source TEXT,  -- 'application' | 'delegated' | 'manual_upload'
-  cbd_generated     INTEGER DEFAULT 0,
+  cbd_generated     INTEGER DEFAULT 0,  -- 1 once any output was generated, a CBD or a meeting brief
+  output_kind       TEXT,  -- 'client_brief' | 'meeting_brief'
   cbd_file_path     TEXT,
   confidence_avg    REAL,
   created_at        TEXT NOT NULL

@@ -9,6 +9,7 @@ function logMeeting({
   filterResult,
   transcriptSource = null,
   cbdGenerated = false,
+  outputKind = null,
   cbdFilePath = null,
   confidenceAvg = null,
 }) {
@@ -17,8 +18,8 @@ function logMeeting({
     .prepare(
       `INSERT INTO meeting_logs
          (id, meeting_id, meeting_title, user_id, hosted_by, filter_result,
-          transcript_source, cbd_generated, cbd_file_path, confidence_avg, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          transcript_source, cbd_generated, output_kind, cbd_file_path, confidence_avg, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       id,
@@ -29,6 +30,7 @@ function logMeeting({
       filterResult,
       transcriptSource,
       cbdGenerated ? 1 : 0,
+      outputKind,
       cbdFilePath,
       confidenceAvg,
       new Date().toISOString()

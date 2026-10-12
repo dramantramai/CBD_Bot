@@ -8,6 +8,9 @@ const { askUser } = require('./filter/uncertainPrompt');
 const { extractCBD } = require('./llm/extractCBD');
 const { fillTemplate } = require('./docgen/fillTemplate');
 const { buildCbdReadyCard } = require('./bot/cards');
+const { generateBrief, BriefUnavailableError } = require('./brief/generate');
+const { formatBrief, splitMessages } = require('./brief/format');
+const { findGapsForCbd, formatGaps, formatClientFollowUp } = require('./gaps');
 const meetingsDb = require('./db/meetings');
 
 // Gemini's context window swallows a 3-hour meeting whole, but the weaker
@@ -86,11 +89,12 @@ async function processOne({
       askUser({
         meeting: { ...m, durationMinutes: verdict.durationMinutes },
         userId: attendeeId,
+        kind: verdict.kind,
         send: (card) => adapters.proactive.sendCard(botAdapter, attendeeId, card),
       }));
 
-  const wanted = await confirm(meeting, verdict);
-  if (!wanted) {
+  const kind = kindOf(await confirm(meeting, verdict), verdict);
+  if (!kind) {
     meetingsDb.logMeeting({
       meetingId: meeting.id,
       meetingTitle: meeting.subject,
@@ -125,12 +129,25 @@ async function processOne({
       botAdapter,
       attendeeId,
       `I couldn't find a transcript for **${meeting.subject}**. The host may not ` +
-        'have turned transcription on. Send me the notes and I can still draft the brief.'
+        'have turned transcription on. Say "client brief" or "meeting brief" and send me ' +
+        'the notes, and I can still draft it.'
     );
     return { status: 'no_transcript', verdict, meeting };
   }
 
-  return generateAndDeliver({ transcript, meeting, attendeeId, botAdapter, verdict });
+  const deliver = kind === 'meeting' ? generateBriefAndDeliver : generateAndDeliver;
+  return deliver({ transcript, meeting, attendeeId, botAdapter, verdict });
+}
+
+/**
+ * What the organiser asked for. A known meeting answers 'yes' (or true, from a
+ * test or script) and gets what it was offered; an unresolved one answers
+ * 'client' or 'meeting' directly. Anything else - 'no', a timeout - is no.
+ */
+function kindOf(answer, verdict) {
+  if (answer === 'client' || answer === 'meeting') return answer;
+  if (answer === true || answer === 'yes') return verdict.kind || 'client';
+  return null;
 }
 
 /**
@@ -138,10 +155,8 @@ async function processOne({
  * and by a transcript handed to the bot directly.
  */
 async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter, verdict }) {
-  const cbd = await extractCBD({
-    transcript: trimTranscript(transcript.text),
-    meeting,
-  });
+  const text = trimTranscript(transcript.text);
+  const cbd = await extractCBD({ transcript: text, meeting });
 
   // Outside mock mode, falling back to the offline extractor means every real
   // provider was exhausted or down. The document still gets written - a rough
@@ -165,6 +180,7 @@ async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter,
     filterResult: 'processed',
     transcriptSource: transcript.source,
     cbdGenerated: true,
+    outputKind: 'client_brief',
     cbdFilePath: filePath,
     confidenceAvg: cbd.confidenceAvg,
   });
@@ -185,7 +201,66 @@ async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter,
     fileName: path.basename(filePath),
   });
 
-  return { status: 'processed', verdict, meeting, cbd, filePath, transcript, degraded };
+  await deliverGaps({ cbd, text, meeting, attendeeId, botAdapter });
+
+  return { status: 'processed', kind: 'client', verdict, meeting, cbd, filePath, transcript, degraded };
+}
+
+/**
+ * The gap findings and a draft client follow-up, as messages after the file.
+ * Never part of the document, which may be shared with the client, and never
+ * allowed to fail the delivery that already happened.
+ */
+async function deliverGaps({ cbd, text, meeting, attendeeId, botAdapter }) {
+  // The offline extractor reads nothing, so every field would be listed as a gap.
+  if (cbd._provider === 'mock') return;
+  try {
+    const gaps = await findGapsForCbd({ cbd, transcript: text, meeting });
+    await adapters.proactive.sendText(botAdapter, attendeeId, formatGaps(gaps));
+    const followUp = formatClientFollowUp(gaps);
+    if (followUp) await adapters.proactive.sendText(botAdapter, attendeeId, followUp);
+  } catch (err) {
+    logger.warn({ meetingId: meeting.id, err: err.message }, 'Gap findings could not be delivered');
+  }
+}
+
+/**
+ * Builds the meeting brief and sends it as ordinary messages. If the models are
+ * all down it says so instead of sending a hollow brief, and records nothing,
+ * so asking again is not blocked.
+ */
+async function generateBriefAndDeliver({ transcript, meeting, attendeeId, botAdapter, verdict }) {
+  let brief;
+  try {
+    brief = await generateBrief({ transcript: transcript.text, timedText: transcript.timedText, meeting });
+  } catch (err) {
+    if (!(err instanceof BriefUnavailableError)) throw err;
+    logger.error({ meetingId: meeting.id, err: err.message }, 'Meeting brief could not be generated');
+    await adapters.proactive.sendText(
+      botAdapter,
+      attendeeId,
+      `I could not generate the meeting brief for **${meeting.subject}** just now: no language ` +
+        'model was available. Say "meeting brief" and send me the transcript to try again.'
+    );
+    return { status: 'failed', kind: 'meeting', verdict, meeting };
+  }
+
+  meetingsDb.logMeeting({
+    meetingId: meeting.id,
+    meetingTitle: meeting.subject,
+    userId: attendeeId,
+    hostedBy: meeting.hostedBy,
+    filterResult: 'processed',
+    transcriptSource: transcript.source,
+    cbdGenerated: true,
+    outputKind: 'meeting_brief',
+  });
+
+  for (const message of splitMessages(formatBrief(brief))) {
+    await adapters.proactive.sendText(botAdapter, attendeeId, message);
+  }
+
+  return { status: 'processed', kind: 'meeting', verdict, meeting, brief, transcript };
 }
 
 const inFlight = new Set();
@@ -222,7 +297,7 @@ async function processMeeting(args) {
  * Nothing here is inferred about attendees or duration, so the filter is
  * skipped entirely: asking for a brief IS the decision the filter would make.
  */
-async function briefFromText({ text, title, userId, botAdapter, source = 'manual' }) {
+async function briefFromText({ text, timedText, title, userId, botAdapter, source = 'manual', kind = 'client' }) {
   if (!text || !text.trim()) throw new Error('No transcript text supplied');
 
   const meeting = {
@@ -232,14 +307,15 @@ async function briefFromText({ text, title, userId, botAdapter, source = 'manual
     dramantramUser: { id: userId },
   };
 
-  logger.info({ userId, source, chars: text.length }, 'Briefing a supplied transcript');
+  logger.info({ userId, source, kind, chars: text.length }, 'Briefing a supplied transcript');
 
-  return generateAndDeliver({
-    transcript: { text, source },
+  const deliver = kind === 'meeting' ? generateBriefAndDeliver : generateAndDeliver;
+  return deliver({
+    transcript: { text, timedText, source },
     meeting,
     attendeeId: userId,
     botAdapter,
-    verdict: { decision: 'process', reason: 'supplied_by_user' },
+    verdict: { decision: 'process', kind, reason: 'supplied_by_user' },
   });
 }
 
