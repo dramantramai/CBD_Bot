@@ -19,13 +19,13 @@ async function callModel(client, model, system, user) {
 }
 
 /**
- * Tries each configured model in turn. Free-tier quota is per model, so an
+ * Sends any prompt and returns the parsed JSON. Tries each configured model in
+ * turn. Free-tier quota is per model, so an
  * exhausted or overloaded model is a reason to move sideways, not to give up
  * on Gemini entirely.
  */
-async function extract({ transcript, meeting }) {
+async function run({ system, user }) {
   const { GoogleGenerativeAI } = require('@google/generative-ai');
-  const { system, user } = buildPrompt({ transcript, meeting });
   const client = new GoogleGenerativeAI(env.GEMINI_API_KEY);
 
   const candidates = modelHealth.available(name, env.GEMINI_MODELS);
@@ -58,4 +58,6 @@ async function extract({ transcript, meeting }) {
   throw new Error(`Every Gemini model failed - ${failures.join('; ')}`);
 }
 
-module.exports = { name, isConfigured, extract };
+const extract = ({ transcript, meeting }) => run(buildPrompt({ transcript, meeting }));
+
+module.exports = { name, isConfigured, extract, run };

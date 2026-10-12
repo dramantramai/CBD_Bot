@@ -26,14 +26,13 @@ async function callModel(client, model, system, user) {
 }
 
 /**
- * Same rotation as Gemini, for the same reason - each model has its own daily
+ * Sends any prompt and returns the parsed JSON. Same rotation as Gemini, for the same reason - each model has its own daily
  * token budget. Note the per-minute token ceiling is shared across Groq models
  * on the free tier, so rotating does NOT rescue a transcript that is simply too
  * long for one request; Gemini's far larger per-minute budget covers those.
  */
-async function extract({ transcript, meeting }) {
+async function run({ system, user }) {
   const Groq = require('groq-sdk');
-  const { system, user } = buildPrompt({ transcript, meeting });
   const client = new Groq({ apiKey: env.GROQ_API_KEY });
 
   const candidates = modelHealth.available(name, env.GROQ_MODELS);
@@ -64,4 +63,6 @@ async function extract({ transcript, meeting }) {
   throw new Error(`Every Groq model failed - ${failures.join('; ')}`);
 }
 
-module.exports = { name, isConfigured, extract };
+const extract = ({ transcript, meeting }) => run(buildPrompt({ transcript, meeting }));
+
+module.exports = { name, isConfigured, extract, run };
