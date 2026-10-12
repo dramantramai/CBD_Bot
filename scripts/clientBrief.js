@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Draft a CBD from a transcript file, with no Teams or Graph involved.
+ * Draft a client brief (CBD) from a transcript file, with no Teams or Graph involved.
  *
- *   node scripts/brief.js meeting.vtt
- *   node scripts/brief.js notes.txt --title "Acme x Dramantram - Kickoff"
- *   node scripts/brief.js meeting.vtt --provider groq --print-prompt
+ *   node scripts/clientBrief.js meeting.vtt
+ *   node scripts/clientBrief.js notes.txt --title "Acme x Dramantram - Kickoff"
+ *   node scripts/clientBrief.js meeting.vtt --provider groq --print-prompt
  *
  * Extraction is real as soon as an LLM key is in .env; without one it falls back
  * to the offline heuristic extractor and says so.
@@ -51,7 +51,7 @@ function usage() {
   console.log(`
 ${bold('Draft a Client Brief Document from a transcript.')}
 
-  node scripts/brief.js <transcript-file> [options]
+  node scripts/clientBrief.js <transcript-file> [options]
 
 ${bold('Options')}
   --title    <text>   Meeting title. Best source of the client name.

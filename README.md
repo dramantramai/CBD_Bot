@@ -32,10 +32,22 @@ on the offline extractor by default. That keeps its assertions deterministic and
 stops a routine run from spending real daily quota. `--real` exercises the live
 provider chain when that is what you want to test.
 
-## Draft a brief from your own transcript
+## Draft a meeting brief from your own transcript
 
 ```bash
-node scripts/brief.js path/to/meeting.vtt --title "Acme x Dramantram - Kickoff"
+node scripts/meetingBrief.js path/to/meeting.vtt --title "Weekly delivery sync"
+```
+
+The internal counterpart: summary, decisions, action items, open questions, gaps
+and a topic-by-topic account, printed as the messages Teams would receive. It
+needs a model key (see below); without one it says so plainly instead of
+guessing. `node scripts/testE2E.js internal-planning --real` runs the same thing
+on a bundled internal-meeting transcript.
+
+## Draft a client brief from your own transcript
+
+```bash
+node scripts/clientBrief.js path/to/meeting.vtt --title "Acme x Dramantram - Kickoff"
 ```
 
 Takes a Teams `.vtt` export or a plain `.txt` of notes, prints every extracted
@@ -58,7 +70,7 @@ model while Teams and Graph stay stubbed:
 
 1. Get a free key at [aistudio.google.com](https://aistudio.google.com/apikey).
 2. Put it in `.env` as `GEMINI_API_KEY=...`.
-3. Re-run `scripts/brief.js`. It prints which provider answered.
+3. Re-run `scripts/clientBrief.js`. It prints which provider answered.
 
 With no key it uses the offline heuristic extractor and says so in yellow. That
 extractor is for development only — it is regex heuristics, and on an unfamiliar

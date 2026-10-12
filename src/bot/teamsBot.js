@@ -1,22 +1,37 @@
 const fs = require('fs');
 const path = require('path');
+const { randomUUID } = require('crypto');
 const { TeamsActivityHandler, TurnContext, CardFactory } = require('botbuilder');
 const logger = require('../utils/logger');
 const { briefFromText } = require('../pipeline');
-const { toTranscriptText } = require('../graph/vtt');
+const { parseVtt, cuesToText, cuesToTimedText } = require('../graph/vtt');
 
 const FILE_DOWNLOAD = 'application/vnd.microsoft.teams.file.download.info';
 
-// ponytail: in-memory, so a restart forgets who was mid-"client brief" and they say
-// it again. A table would survive restarts if that ever proves annoying.
-const awaitingNotes = new Map();
-const NOTES_WINDOW_MS = 10 * 60 * 1000;
+// ponytail: both are in memory, so a restart forgets them and the person just
+// asks again. A table would survive restarts if that ever proves annoying.
+const awaiting = new Map(); // userId -> { kind, at }: said "client brief" or "meeting brief", transcript to follow
+const heldFiles = new Map(); // token -> a dropped file waiting on "which one do you want?"
+const HOLD_MS = 10 * 60 * 1000;
 const MIN_NOTES_CHARS = 200;
-const { buildWelcomeCard } = require('./cards');
+const KINDS = { client: 'client brief', meeting: 'meeting brief' };
+const isFresh = (at) => at > Date.now() - HOLD_MS;
+const { buildWelcomeCard, buildChooseOutputCard } = require('./cards');
 const { sendSignInPrompt, hasSignedIn, completeSignIn } = require('./sso');
 const { saveReference } = require('../db/conversations');
 const { settle } = require('../filter/uncertainPrompt');
 const { listRecent } = require('../db/meetings');
+
+function askForTranscript(kind) {
+  const why =
+    kind === 'client'
+      ? 'Use this for meetings a client hosted: their transcripts live on their tenant, so I cannot fetch those myself.'
+      : 'Use this for any meeting I did not pick up myself, including a direct call.';
+  return (
+    `Send me the transcript and I will draft the ${KINDS[kind]} - upload the **.vtt** from ` +
+    `the meeting, or just paste the notes in your next message.\n\n${why}`
+  );
+}
 
 class CbdBot extends TeamsActivityHandler {
   constructor() {
@@ -70,6 +85,9 @@ class CbdBot extends TeamsActivityHandler {
    * A transcript the user handed over, for a meeting this tenant cannot fetch
    * - which is every meeting a client hosted. The download URL Teams provides
    * is already authorised, so it is fetched as-is.
+   *
+   * If they already said which output they want, it is made straight away;
+   * otherwise the file is held for a few minutes and they are asked.
    */
   async handleUploadedTranscript(context, file) {
     const userId = this.userIdOf(context);
@@ -85,33 +103,84 @@ class CbdBot extends TeamsActivityHandler {
       await context.sendActivity(
         `I can read **.vtt** (the Teams transcript export) and plain **.txt**. ` +
           `**${name}** is neither - export the transcript as .vtt, or paste the ` +
-          `notes after saying "client brief".`
+          `notes after saying "client brief" or "meeting brief".`
       );
       return;
     }
 
     await context.sendActivity(`Reading **${name}**...`);
 
+    let parsed;
     try {
       const res = await fetch(url);
       if (!res.ok) throw new Error(`download returned HTTP ${res.status}`);
       const raw = await res.text();
-
-      // A .vtt is timestamps and cue markup; the extractor wants speech.
-      const text = /\.vtt$/i.test(name) ? toTranscriptText(raw) : raw;
-
-      await briefFromText({
-        text,
-        title: path.basename(name, path.extname(name)),
-        userId,
-        botAdapter: context.adapter,
-        source: 'uploaded',
-      });
+      // A .vtt is timestamps and cue markup; keep the times for the meeting brief.
+      if (/\.vtt$/i.test(name)) {
+        const cues = parseVtt(raw);
+        parsed = { text: cuesToText(cues), timedText: cuesToTimedText(cues) };
+      } else {
+        parsed = { text: raw };
+      }
     } catch (err) {
-      logger.error({ err: err.message, name }, 'Briefing an uploaded transcript failed');
+      logger.error({ err: err.message, name }, 'Reading an uploaded transcript failed');
+      await context.sendActivity(`I couldn't read **${name}**: ${err.message}. Try again, or paste the notes instead.`);
+      return;
+    }
+
+    const title = path.basename(name, path.extname(name));
+    const pending = awaiting.get(userId);
+    if (pending && isFresh(pending.at)) {
+      awaiting.delete(userId);
+      await this.makeBrief(context, { kind: pending.kind, ...parsed, title, source: 'uploaded' });
+      return;
+    }
+
+    const token = randomUUID();
+    heldFiles.set(token, { userId, ...parsed, title, at: Date.now() });
+    await context.sendActivity({
+      attachments: [CardFactory.adaptiveCard(buildChooseOutputCard({ detail: `I have read ${name}.`, token }))],
+    });
+  }
+
+  /** Makes the requested brief from a supplied transcript, and says plainly if it cannot. */
+  async makeBrief(context, args) {
+    try {
+      await briefFromText({ ...args, userId: this.userIdOf(context), botAdapter: context.adapter });
+    } catch (err) {
+      logger.error({ err: err.message, kind: args.kind }, 'Briefing a supplied transcript failed');
       await context.sendActivity(
-        `I couldn't draft a client brief from **${name}**: ${err.message}. Try again, or paste the notes instead.`
+        `I couldn't draft that ${KINDS[args.kind]}: ${err.message}. Try again, or paste the notes instead.`
       );
+    }
+  }
+
+  /** The answer to "which one do you want?", from a dropped file or from a bare "brief". */
+  async handleChooseOutput(context, { answer, token }) {
+    const userId = this.userIdOf(context);
+    if (token) {
+      const held = heldFiles.get(token);
+      heldFiles.delete(token);
+      if (answer === 'cancel') {
+        await context.sendActivity('Cancelled - nothing was generated.');
+      } else if (!KINDS[answer]) {
+        logger.warn({ answer }, 'Unrecognised output choice');
+      } else if (!held || held.userId !== userId || !isFresh(held.at)) {
+        await context.sendActivity(
+          'I am no longer holding that file. Drop it again, or say "client brief" or "meeting brief" first.'
+        );
+      } else {
+        await context.sendActivity(`Working on the ${KINDS[answer]}...`);
+        await this.makeBrief(context, { kind: answer, text: held.text, timedText: held.timedText, title: held.title, source: 'uploaded' });
+      }
+      return;
+    }
+
+    if (answer === 'cancel') {
+      await context.sendActivity('Cancelled.');
+    } else if (KINDS[answer]) {
+      awaiting.set(userId, { kind: answer, at: Date.now() });
+      await context.sendActivity(askForTranscript(answer));
     }
   }
 
@@ -123,17 +192,22 @@ class CbdBot extends TeamsActivityHandler {
       return;
     }
 
+    if (value.action === 'chooseOutput') {
+      await this.handleChooseOutput(context, value);
+      return;
+    }
+
     if (value.action === 'confirmMeeting') {
-      const wanted = value.answer === 'yes';
-      const known = settle(value.meetingId, userId, wanted);
+      const known = settle(value.meetingId, userId, value.answer);
+      const wanted = value.answer !== 'no';
       await context.sendActivity(
         !known
-          ? 'That prompt has already expired, so I skipped the meeting. Say ' +
-              '"client brief" and send me the transcript if you still want a document for it.'
+          ? 'That prompt has already expired, so I skipped the meeting. Say "client brief" or ' +
+              '"meeting brief" and send me the transcript if you still want one.'
           : wanted
-            ? "On it - I'll send the client brief in a moment."
-            : 'Skipped - nothing was read or generated. I will not ask about that ' +
-              'meeting again. Say "client brief" and send me the transcript if you change your mind.'
+            ? `On it - I'll send ${KINDS[value.answer] ? `the ${KINDS[value.answer]}` : 'it'} in a moment.`
+            : 'Skipped - nothing was read or generated. I will not ask about that meeting again. ' +
+              'Say "client brief" or "meeting brief" and send me the transcript if you change your mind.'
       );
       return;
     }
@@ -146,43 +220,40 @@ class CbdBot extends TeamsActivityHandler {
     const text = raw.toLowerCase();
     const userId = this.userIdOf(context);
 
-    // The message after "client brief" is the notes themselves, so it cannot be
-    // matched against commands - "status" could legitimately appear in them.
-    if (awaitingNotes.get(userId) > Date.now() - NOTES_WINDOW_MS) {
-      awaitingNotes.delete(userId);
+    // The message after "client brief" or "meeting brief" is the notes themselves,
+    // so it cannot be matched against commands - "status" could appear in them.
+    const pending = awaiting.get(userId);
+    if (pending && isFresh(pending.at)) {
+      awaiting.delete(userId);
       if (raw.length < MIN_NOTES_CHARS) {
         await context.sendActivity(
-          `That is only ${raw.length} characters - too little to draft a client brief from. ` +
-            'Say "client brief" and paste the full notes, or upload the .vtt.'
+          `That is only ${raw.length} characters - too little to draft a ${KINDS[pending.kind]} from. ` +
+            `Say "${KINDS[pending.kind]}" and paste the full notes, or upload the .vtt.`
         );
         return;
       }
       await context.sendActivity('Working through those notes...');
-      try {
-        await briefFromText({
-          text: raw,
-          title: 'Notes',
-          userId,
-          botAdapter: context.adapter,
-          source: 'pasted',
-        });
-      } catch (err) {
-        logger.error({ err: err.message }, 'Briefing pasted notes failed');
-        await context.sendActivity(`I couldn't draft that: ${err.message}`);
-      }
+      await this.makeBrief(context, { kind: pending.kind, text: raw, title: 'Notes', source: 'pasted' });
       return;
     }
 
-    // "brief" alone is deliberately not a command: it is reserved for the
-    // internal meeting brief, which is a different output from this one.
-    if (text === 'client brief' || text.startsWith('client brief ')) {
-      awaitingNotes.set(userId, Date.now());
-      await context.sendActivity(
-        'Send me the transcript and I will draft the client brief - upload the **.vtt** ' +
-          'from the meeting, or just paste the notes in your next message.\n\n' +
-          'Use this for meetings a client hosted: their transcripts live on their ' +
-          'tenant, so I cannot fetch those myself.'
-      );
+    for (const [kind, command] of Object.entries(KINDS)) {
+      if (text === command || text.startsWith(`${command} `)) {
+        awaiting.set(userId, { kind, at: Date.now() });
+        await context.sendActivity(askForTranscript(kind));
+        return;
+      }
+    }
+
+    // A bare "brief" is ambiguous - there are two kinds - so ask which.
+    if (text === 'brief') {
+      await context.sendActivity({
+        attachments: [
+          CardFactory.adaptiveCard(
+            buildChooseOutputCard({ detail: 'Choose one, then send me the transcript.', token: '' })
+          ),
+        ],
+      });
       return;
     }
 
@@ -221,11 +292,13 @@ class CbdBot extends TeamsActivityHandler {
     }
 
     await context.sendActivity(
-      'I draft Client Brief Documents from client meeting transcripts, ' +
-        'automatically after a meeting Dramantram hosted.\n\n' +
-        'For a meeting the **client** hosted, say **"client brief"** and send me the ' +
-        'transcript - I cannot reach those myself, they live on the client\'s ' +
-        'tenant. You can also just drop a .vtt here any time.\n\n' +
+      'I turn meeting transcripts into two things: a **client brief** (the Client Brief ' +
+        'Document) for client meetings, and a **meeting brief** (decisions, action items, ' +
+        'open questions) for internal ones. After a meeting you organised I ask first, and ' +
+        'read nothing until you say yes.\n\n' +
+        'For a meeting the client hosted, or one I did not pick up, say **"client brief"** or ' +
+        '**"meeting brief"** and send me the transcript, or just drop a .vtt here and I will ' +
+        'ask which you want.\n\n' +
         'Say **"status"** to see what I have processed.'
     );
   }
