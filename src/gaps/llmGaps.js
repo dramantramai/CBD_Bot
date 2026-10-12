@@ -74,7 +74,7 @@ Look only for these, and only where the transcript gives evidence:
 
 Rules:
 - Every item needs "quote": the exact words copied from the transcript, 3 to 30 words, without speaker names. Never paraphrase. An item without a real quote is discarded.
-- "severity": blocker (work cannot start or will certainly need redoing), important, or minor.
+- "severity": blocker only when work literally cannot begin or two requirements conflict; a vague word or a deferred item is at most important; otherwise minor.
 - "question": one short question to put to the client that would settle it.
 - At most 10 items, most serious first. An empty list is a valid answer when the meeting was clear. Do not invent anything.
 Respond with one JSON object and nothing else:

@@ -37,7 +37,7 @@ Rules:
 - An action item is a commitment to do something. "owner" is who committed or was asked, "" if nobody. Include a task that was named but given to nobody, with "owner" empty; do not leave it out. "due" is the deadline exactly as spoken ("by Friday", "15 Oct"), "" if none was given. Never convert a deadline into a date and never invent one.
 - An open question was asked and not answered in this transcript.
 - Topics follow the order of the conversation. Use the [HH:MM:SS] times in the transcript for "start" and "end", or "" if there are none. "points" are at most five short sentences; "outcome" is what was settled, or "".
-- "gaps" are things that are vague, contradictory, deferred, assumed, unowned or dependent on a third party. "kind" is one of vague, contradiction, unanswered, deferred, assumption, no_owner_or_date, dependency. "severity" is blocker, important or minor. "question" is one short question that would settle it. At most 8.
+- "gaps" are things that are vague, contradictory, deferred, assumed, unowned or dependent on a third party. "kind" is one of vague, contradiction, unanswered, deferred, assumption, no_owner_or_date, dependency. "severity" is blocker only when work literally cannot begin or two requirements conflict, important, or minor; a vague word or a deferred item is at most important. "question" is one short question that would settle it. At most 8.
 - "summary": two or three sentences on what the meeting was about and what it achieved.
 - Empty lists are valid. Respond with the JSON object only.`;
 
