@@ -7,7 +7,7 @@ const { toTranscriptText } = require('../graph/vtt');
 
 const FILE_DOWNLOAD = 'application/vnd.microsoft.teams.file.download.info';
 
-// ponytail: in-memory, so a restart forgets who was mid-"brief" and they say
+// ponytail: in-memory, so a restart forgets who was mid-"client brief" and they say
 // it again. A table would survive restarts if that ever proves annoying.
 const awaitingNotes = new Map();
 const NOTES_WINDOW_MS = 10 * 60 * 1000;
@@ -85,7 +85,7 @@ class CbdBot extends TeamsActivityHandler {
       await context.sendActivity(
         `I can read **.vtt** (the Teams transcript export) and plain **.txt**. ` +
           `**${name}** is neither - export the transcript as .vtt, or paste the ` +
-          `notes after saying "brief".`
+          `notes after saying "client brief".`
       );
       return;
     }
@@ -110,7 +110,7 @@ class CbdBot extends TeamsActivityHandler {
     } catch (err) {
       logger.error({ err: err.message, name }, 'Briefing an uploaded transcript failed');
       await context.sendActivity(
-        `I couldn't brief **${name}**: ${err.message}. Try again, or paste the notes instead.`
+        `I couldn't draft a client brief from **${name}**: ${err.message}. Try again, or paste the notes instead.`
       );
     }
   }
@@ -129,9 +129,9 @@ class CbdBot extends TeamsActivityHandler {
       await context.sendActivity(
         !known
           ? 'That prompt has already expired, so I skipped the meeting. Say ' +
-              '"brief <meeting name>" if you still want a document for it.'
+              '"client brief" and send me the transcript if you still want a document for it.'
           : wanted
-            ? "On it - I'll send the brief in a moment."
+            ? "On it - I'll send the client brief in a moment."
             : 'Skipped. I will not ask about that meeting again.'
       );
       return;
@@ -145,14 +145,14 @@ class CbdBot extends TeamsActivityHandler {
     const text = raw.toLowerCase();
     const userId = this.userIdOf(context);
 
-    // The message after "brief" is the notes themselves, so it cannot be
+    // The message after "client brief" is the notes themselves, so it cannot be
     // matched against commands - "status" could legitimately appear in them.
     if (awaitingNotes.get(userId) > Date.now() - NOTES_WINDOW_MS) {
       awaitingNotes.delete(userId);
       if (raw.length < MIN_NOTES_CHARS) {
         await context.sendActivity(
-          `That is only ${raw.length} characters - too little to brief from. ` +
-            'Say "brief" and paste the full notes, or upload the .vtt.'
+          `That is only ${raw.length} characters - too little to draft a client brief from. ` +
+            'Say "client brief" and paste the full notes, or upload the .vtt.'
         );
         return;
       }
@@ -172,10 +172,12 @@ class CbdBot extends TeamsActivityHandler {
       return;
     }
 
-    if (text === 'brief' || text.startsWith('brief ')) {
+    // "brief" alone is deliberately not a command: it is reserved for the
+    // internal meeting brief, which is a different output from this one.
+    if (text === 'client brief' || text.startsWith('client brief ')) {
       awaitingNotes.set(userId, Date.now());
       await context.sendActivity(
-        'Send me the transcript and I will draft the brief - upload the **.vtt** ' +
+        'Send me the transcript and I will draft the client brief - upload the **.vtt** ' +
           'from the meeting, or just paste the notes in your next message.\n\n' +
           'Use this for meetings a client hosted: their transcripts live on their ' +
           'tenant, so I cannot fetch those myself.'
@@ -220,7 +222,7 @@ class CbdBot extends TeamsActivityHandler {
     await context.sendActivity(
       'I draft Client Brief Documents from client meeting transcripts, ' +
         'automatically after a meeting Dramantram hosted.\n\n' +
-        'For a meeting the **client** hosted, say **"brief"** and send me the ' +
+        'For a meeting the **client** hosted, say **"client brief"** and send me the ' +
         'transcript - I cannot reach those myself, they live on the client\'s ' +
         'tenant. You can also just drop a .vtt here any time.\n\n' +
         'Say **"status"** to see what I have processed.'
