@@ -49,8 +49,12 @@ function findByMeetingId(meetingId, userId) {
     .all(meetingId, userId ?? null);
 }
 
-function alreadyProcessed(meetingId, userId) {
-  return findByMeetingId(meetingId, userId).some((r) => r.cbd_generated === 1);
+/** 'briefed', 'declined' (including a prompt that expired) or null. */
+function priorOutcome(meetingId, userId) {
+  const rows = findByMeetingId(meetingId, userId);
+  if (rows.some((r) => r.cbd_generated === 1)) return 'briefed';
+  if (rows.some((r) => r.filter_result === 'skipped_user')) return 'declined';
+  return null;
 }
 
 function listRecent(limit = 50) {
@@ -63,6 +67,6 @@ module.exports = {
   logMeeting,
   getMeetingLog,
   findByMeetingId,
-  alreadyProcessed,
+  priorOutcome,
   listRecent,
 };

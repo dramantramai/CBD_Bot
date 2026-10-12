@@ -34,13 +34,13 @@ function trimTranscript(text) {
  * Shared by the Graph webhook and scripts/testE2E.js so both exercise exactly
  * the same path.
  */
-async function processMeeting({
+async function processOne({
   meetingId,
   userId,
   fixture,
   joinUrl,
   botAdapter = null,
-  onUncertain,
+  onConfirm,
 }) {
   const meeting = await adapters.attendees.getMeetingDetails({
     meetingId,
@@ -50,8 +50,11 @@ async function processMeeting({
   });
   const attendeeId = userId || (meeting.dramantramUser && meeting.dramantramUser.id);
 
-  if (meetingsDb.alreadyProcessed(meeting.id, attendeeId)) {
-    logger.info({ meetingId: meeting.id }, 'Already briefed; ignoring redelivery');
+  // Graph can notify more than once for one meeting (one per transcript
+  // segment), so a meeting that was briefed, or declined, is not revisited.
+  const prior = meetingsDb.priorOutcome(meeting.id, attendeeId);
+  if (prior) {
+    logger.info({ meetingId: meeting.id, prior }, 'Already handled; ignoring redelivery');
     return { status: 'duplicate', meeting };
   }
 
@@ -73,28 +76,29 @@ async function processMeeting({
     return { status: 'skipped', verdict, meeting };
   }
 
-  if (verdict.decision === DECISION.UNCERTAIN) {
-    const confirm =
-      onUncertain ||
-      ((m) =>
-        askUser({
-          meeting: { ...m, durationMinutes: verdict.durationMinutes },
-          userId: attendeeId,
-          send: (card) =>
-            adapters.proactive.sendCard(botAdapter, attendeeId, card),
-        }));
-
-    const wanted = await confirm(meeting, verdict);
-    if (!wanted) {
-      meetingsDb.logMeeting({
-        meetingId: meeting.id,
-        meetingTitle: meeting.subject,
+  // Consent gate. Nothing below this point runs until a person says yes: no
+  // transcript is downloaded and no model is called. That holds for every
+  // meeting that passes the filter, including ones it was sure were client
+  // meetings - model quota is spent only on meetings somebody asked for.
+  const confirm =
+    onConfirm ||
+    ((m) =>
+      askUser({
+        meeting: { ...m, durationMinutes: verdict.durationMinutes },
         userId: attendeeId,
-        hostedBy: meeting.hostedBy,
-        filterResult: 'skipped_user',
-      });
-      return { status: 'skipped', verdict, meeting };
-    }
+        send: (card) => adapters.proactive.sendCard(botAdapter, attendeeId, card),
+      }));
+
+  const wanted = await confirm(meeting, verdict);
+  if (!wanted) {
+    meetingsDb.logMeeting({
+      meetingId: meeting.id,
+      meetingTitle: meeting.subject,
+      userId: attendeeId,
+      hostedBy: meeting.hostedBy,
+      filterResult: 'skipped_user',
+    });
+    return { status: 'skipped', verdict, meeting };
   }
 
   // ── transcript ──────────────────────────────────────────────────────────
@@ -182,6 +186,28 @@ async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter,
   });
 
   return { status: 'processed', verdict, meeting, cbd, filePath, transcript, degraded };
+}
+
+const inFlight = new Set();
+
+/**
+ * Entry point for a meeting notification. A second notification for a meeting
+ * that is already being handled - including one still waiting on the user's
+ * answer - is dropped, otherwise a single Yes would start the whole pipeline
+ * twice and produce two documents.
+ */
+async function processMeeting(args) {
+  const key = `${args.userId || ''}::${args.meetingId || args.fixture || args.joinUrl || ''}`;
+  if (inFlight.has(key)) {
+    logger.info({ key }, 'Already being handled; ignoring concurrent notification');
+    return { status: 'duplicate' };
+  }
+  inFlight.add(key);
+  try {
+    return await processOne(args);
+  } finally {
+    inFlight.delete(key);
+  }
 }
 
 /**

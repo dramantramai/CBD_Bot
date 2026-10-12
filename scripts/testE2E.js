@@ -31,7 +31,7 @@ const meetingsDb = require('../src/db/meetings');
 // dropped in to test against - is assumed to be a brief-worthy client meeting,
 // so adding one needs no edit here.
 const EXPECTED = {
-  'client-meeting': { status: 'processed', answerUncertain: null },
+  'client-meeting': { status: 'processed', answerUncertain: true },
   'internal-standup': { status: 'skipped', answerUncertain: null },
   'ambiguous-meeting': { status: 'processed', answerUncertain: true },
 };
@@ -67,8 +67,8 @@ async function runFixture(name) {
     fixture: name,
     // Stands in for the user tapping Yes/No on the "was this a client meeting?"
     // card, so the uncertain branch is exercised without a Teams client.
-    onUncertain: async (meeting) => {
-      console.log(dim(`   (bot asked: was "${meeting.subject}" a client meeting?)`));
+    onConfirm: async (meeting) => {
+      console.log(dim(`   (bot asked: generate a client brief for "${meeting.subject}"?)`));
       return expected.answerUncertain === true;
     },
   });

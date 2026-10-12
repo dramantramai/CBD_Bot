@@ -132,7 +132,8 @@ class CbdBot extends TeamsActivityHandler {
               '"client brief" and send me the transcript if you still want a document for it.'
           : wanted
             ? "On it - I'll send the client brief in a moment."
-            : 'Skipped. I will not ask about that meeting again.'
+            : 'Skipped - nothing was read or generated. I will not ask about that ' +
+              'meeting again. Say "client brief" and send me the transcript if you change your mind.'
       );
       return;
     }
