@@ -1,6 +1,6 @@
 const fs = require('fs');
 const path = require('path');
-const { toTranscriptText } = require('./vtt');
+const { parseVtt, cuesToText, cuesToTimedText } = require('./vtt');
 const { allFixtures } = require('./attendees.mock');
 
 const TRANSCRIPT_DIR = path.join(__dirname, '..', '..', 'fixtures', 'transcripts');
@@ -27,12 +27,12 @@ async function getTranscript({ meetingId, transcriptFixture }) {
   const file = path.join(TRANSCRIPT_DIR, name);
   if (!fs.existsSync(file)) throw new NoTranscriptError(meetingId);
 
-  const vtt = fs.readFileSync(file, 'utf8');
+  const cues = parseVtt(fs.readFileSync(file, 'utf8'));
   return {
-    vtt,
-    text: toTranscriptText(vtt),
+    text: cuesToText(cues),
+    timedText: cuesToTimedText(cues),
     source: 'manual_upload',
-    transcriptId: `mock-${name}`,
+    segments: 1,
   };
 }
 

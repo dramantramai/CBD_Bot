@@ -56,6 +56,35 @@ describe('dual-path transcript fetch', () => {
     expect(result.text).toContain('Ananya Rao: Hello there.');
   });
 
+  it('reads every transcript of a meeting, in time order, not just the first', async () => {
+    // Stopping and restarting transcription makes a second transcript whose
+    // clock starts again at 00:00. Graph does not promise to list them in order.
+    const part = (speaker, line) =>
+      `WEBVTT\n\n00:00:10.000 --> 00:00:14.000\n<v ${speaker}>${line}</v>\n`;
+    stubGraph([
+      {
+        match: /communications.*\/transcripts$/,
+        value: {
+          value: [
+            { id: 'late', createdDateTime: '2026-10-06T10:05:00Z' },
+            { id: 'early', createdDateTime: '2026-10-06T10:00:00Z' },
+          ],
+        },
+      },
+      { match: /\/transcripts\/early\/content$/, value: part('Ritika', 'We start with the storyboard.') },
+      { match: /\/transcripts\/late\/content$/, value: part('Kabir', 'Back again, the music licence is open.') },
+    ]);
+
+    const { getTranscript } = loadTranscripts();
+    const result = await getTranscript({ meetingId: 'm5', userId: 'u1' });
+
+    expect(result.segments).toBe(2);
+    expect(result.text.indexOf('storyboard')).toBeLessThan(result.text.indexOf('music licence'));
+    // The second segment began five minutes later, so its first cue is at ~5:10.
+    expect(result.timedText).toContain('[00:00:10] Ritika');
+    expect(result.timedText).toContain('[00:05:10] Kabir');
+  });
+
   it('falls through to delegated access when the meeting is on the client tenant', async () => {
     const forbidden = Object.assign(new Error('Forbidden'), { statusCode: 403 });
     const calls = stubGraph([
