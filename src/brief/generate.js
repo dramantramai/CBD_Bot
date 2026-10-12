@@ -1,12 +1,11 @@
 const logger = require('../utils/logger');
 const { generateJson } = require('../llm/generate');
-const { validateTranscriptGaps, executabilityGaps, squash, BRIEF_PERSPECTIVE } = require('../gaps/llmGaps');
+const { validateTranscriptGaps, squash } = require('../gaps/llmGaps');
 const { rank } = require('../gaps');
 const { getDurationMinutes } = require('../filter/smartFilter');
 const { chunkTranscript } = require('./chunk');
 
 const CLOCK_RX = /^\d{2}:\d{2}:\d{2}$/;
-const BRIEF_FIELDS = ['summary', 'decisions', 'actionItems', 'openQuestions'];
 const NO_MODEL =
   'Drafted without AI: no language model was available, so nothing below was extracted from the transcript.';
 
@@ -35,7 +34,7 @@ Rules:
 - Speakers are labelled in the transcript. Use their names exactly. "raisedBy", "madeBy", "askedBy" and "owner" must be a person named in the transcript, or "" when it is not clear.
 - "quote": the exact words from the transcript, 3 to 30 words, copied and never paraphrased, without speaker names or timestamps. An item without a real quote is discarded.
 - A decision is something the people explicitly agreed. Never turn a suggestion into a decision.
-- An action item is a commitment to do something. "owner" is who committed or was asked, "" if nobody. "due" is the deadline exactly as spoken ("by Friday", "15 Oct"), "" if none was given. Never convert a deadline into a date and never invent one.
+- An action item is a commitment to do something. "owner" is who committed or was asked, "" if nobody. Include a task that was named but given to nobody, with "owner" empty; do not leave it out. "due" is the deadline exactly as spoken ("by Friday", "15 Oct"), "" if none was given. Never convert a deadline into a date and never invent one.
 - An open question was asked and not answered in this transcript.
 - Topics follow the order of the conversation. Use the [HH:MM:SS] times in the transcript for "start" and "end", or "" if there are none. "points" are at most five short sentences; "outcome" is what was settled, or "".
 - "gaps" are things that are vague, contradictory, deferred, assumed, unowned or dependent on a third party. "kind" is one of vague, contradiction, unanswered, deferred, assumption, no_owner_or_date, dependency. "severity" is blocker, important or minor. "question" is one short question that would settle it. At most 8.
@@ -148,16 +147,6 @@ const meetingFacts = (meeting) => ({
   attendees: arr(meeting && meeting.attendees).map((a) => a.displayName).filter(Boolean),
 });
 
-function briefToText(brief) {
-  const lines = [`summary: ${brief.summary}`];
-  brief.decisions.forEach((d) => lines.push(`decisions: ${d.text}`));
-  brief.actionItems.forEach((a) =>
-    lines.push(`actionItems: ${a.owner || '(no owner)'} - ${a.task} - ${a.due || '(no date)'}`)
-  );
-  brief.openQuestions.forEach((q) => lines.push(`openQuestions: ${q.question}`));
-  return lines.join('\n');
-}
-
 /**
  * Builds a meeting brief from a transcript. `timedText` has "[HH:MM:SS]" marks
  * and is used when the transcript came from Teams; pasted notes have none.
@@ -201,29 +190,15 @@ async function generateBrief({ transcript, timedText, meeting }, options = {}) {
 
   const brief = { ...facts, ...notes, unverified: notes.dropped };
   delete brief.dropped;
-  brief.gapResult = await gapsFor(brief, options);
+  // The gaps come from the notes themselves, each already tied to a quote. A
+  // second "what would someone have to assume" pass was tried on briefs and
+  // only restated these, with inflated severity, so it is not run.
+  brief.gapResult = { ...rank(brief.gaps), notes: [] };
   logger.info(
     { chunks: chunks.length, actions: brief.actionItems.length, unverified: brief.unverified },
     'Meeting brief generated'
   );
   return brief;
-}
-
-/** The brief's own quoted gaps plus the executability test, ranked and capped. */
-async function gapsFor(brief, options) {
-  const findings = [...brief.gaps];
-  const notes = [];
-  try {
-    const found = await executabilityGaps(
-      { content: briefToText(brief), fields: BRIEF_FIELDS, perspective: BRIEF_PERSPECTIVE },
-      options
-    );
-    if (found) findings.push(...found);
-  } catch (err) {
-    logger.warn({ err: err.message }, 'Brief executability check failed');
-    notes.push(`The executability check could not run (${err.message}).`);
-  }
-  return { ...rank(findings), notes };
 }
 
 function skeleton(facts) {
@@ -241,4 +216,4 @@ function skeleton(facts) {
   };
 }
 
-module.exports = { generateBrief, validateNotes, briefToText, BriefUnavailableError, NO_MODEL };
+module.exports = { generateBrief, validateNotes, BriefUnavailableError, NO_MODEL };

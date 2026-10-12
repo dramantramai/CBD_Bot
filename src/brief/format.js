@@ -7,6 +7,8 @@ const MESSAGE_BYTES = 24000;
 const bytes = (s) => Buffer.byteLength(s, 'utf8');
 
 function dateOf(iso) {
+  // new Date(null) is 1 January 1970, so a missing time must not reach it.
+  if (!iso) return '';
   const d = new Date(iso);
   if (Number.isNaN(d.getTime())) return '';
   return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' });

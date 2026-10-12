@@ -132,10 +132,18 @@ describe('method C: forced assumptions must name a real field', () => {
 
   it('keeps an assumption tied to a real field', () => {
     const [a] = validateAssumptions(
-      { assumptions: [{ field: 'solutionScope', assumption: 'how many films', severity: 'blocker', question: 'How many?' }] },
+      { assumptions: [{ field: 'solutionScope', assumption: 'how many films', severity: 'important', question: 'How many?' }] },
       allowed
     );
-    expect(a).toMatchObject({ method: 'C', field: 'solutionScope', severity: 'blocker', evidence: 'Field solutionScope' });
+    expect(a).toMatchObject({ method: 'C', field: 'solutionScope', severity: 'important', evidence: 'Field solutionScope' });
+  });
+
+  it('never calls an inference a blocker, so it cannot outrank a finding that has evidence', () => {
+    const [a] = validateAssumptions(
+      { assumptions: [{ field: 'solutionScope', assumption: 'the formats', severity: 'blocker' }] },
+      allowed
+    );
+    expect(a.severity).toBe('important');
   });
 
   it('drops an assumption about a field the document does not have', () => {

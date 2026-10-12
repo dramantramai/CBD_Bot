@@ -49,7 +49,9 @@ function validateAssumptions(raw, allowedFields) {
     out.push({
       method: 'C',
       field,
-      severity: SEVERITIES.has(a.severity) ? a.severity : 'minor',
+      // An inference about what someone would have to guess is not evidence, so
+      // it never outranks a finding that is: capped below blocker.
+      severity: a.severity === 'blocker' ? 'important' : SEVERITIES.has(a.severity) ? a.severity : 'minor',
       finding: `Would have to assume: ${assumption}`,
       evidence: `Field ${field}`,
       question: String(a.question || '').trim(),
@@ -78,18 +80,13 @@ Rules:
 Respond with one JSON object and nothing else:
 {"gaps":[{"kind":"...","severity":"...","finding":"...","quote":"...","question":"..."}]}`;
 
-const CBD_PERSPECTIVE =
-  'a production lead at Dramantram, a creative agency. You must start work tomorrow using ONLY the document below, and you cannot contact the client';
-const BRIEF_PERSPECTIVE =
-  'a colleague at Dramantram who missed this meeting and must act on it tomorrow using ONLY the brief below, and cannot ask anyone';
-
-const assumptionSystem = (perspective) => `You are ${perspective}. List what you would have to ASSUME or GUESS before you could act.
+const ASSUMPTION_SYSTEM = `You are a production lead at Dramantram, a creative agency. You must start work tomorrow using ONLY the document below, and you cannot contact the client. List what you would have to ASSUME or GUESS before you could start.
 
 Rules:
 - "field" must be exactly one of the field names you are given.
 - "assumption" is the smallest guess you would have to make, in one sentence.
 - "severity": blocker (you could not start), important (you could start but risk rework), minor.
-- "question": one short question that would remove the assumption.
+- "question": one short question to the client that would remove the assumption.
 - Do not repeat what the document states clearly. At most 8 items. An empty list is a valid answer.
 Respond with one JSON object and nothing else:
 {"assumptions":[{"field":"...","assumption":"...","severity":"...","question":"..."}]}`;
@@ -107,12 +104,12 @@ ${transcript}`;
 }
 
 /** Method C: reads only the finished document. Null when no model is available. */
-async function executabilityGaps({ content, fields, perspective = CBD_PERSPECTIVE }, options = {}) {
+async function executabilityGaps({ content, fields }, options = {}) {
   const user = `FIELD NAMES: ${fields.join(', ')}
 
 DOCUMENT
 ${content}`;
-  const raw = await generateJson({ system: assumptionSystem(perspective), user }, options);
+  const raw = await generateJson({ system: ASSUMPTION_SYSTEM, user }, options);
   return raw === null ? null : validateAssumptions(raw, new Set(fields));
 }
 
@@ -122,5 +119,4 @@ module.exports = {
   validateTranscriptGaps,
   validateAssumptions,
   squash,
-  BRIEF_PERSPECTIVE,
 };

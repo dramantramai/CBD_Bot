@@ -115,10 +115,10 @@ describe('generateBrief', () => {
     decisions: [], openQuestions: [], topics: [], gaps: [],
   });
 
-  it('makes one call for a meeting that fits one piece, plus the executability check', async () => {
+  it('makes exactly one call for a meeting that fits one piece', async () => {
     const { chain, calls } = fakeChain({ notes: answer });
     const brief = await generateBrief({ transcript: TRANSCRIPT, timedText: TRANSCRIPT, meeting }, { chain });
-    expect(calls.filter((c) => /meeting analyst/i.test(c.system))).toHaveLength(1);
+    expect(calls).toHaveLength(1);
     expect(brief.actionItems).toHaveLength(1);
     expect(brief).toMatchObject({ title: 'Weekly Delivery Sync', durationMinutes: 34, attendees: ['Ritika', 'Kabir'] });
   });
@@ -171,11 +171,17 @@ describe('generateBrief', () => {
     await expect(generateBrief({ transcript: '  ', meeting }, { chain: [] })).rejects.toThrow(/empty/);
   });
 
-  it('still delivers the brief when only the executability check fails', async () => {
-    const { chain } = fakeChain({ notes: answer, assume: () => { throw new Error('quota'); } });
+  it('ranks the gaps the notes raised and carries their quotes', async () => {
+    const gap = (severity, quote) => ({ kind: 'deferred', severity, finding: `f-${severity}`, quote, question: 'q' });
+    const { chain } = fakeChain({
+      notes: () => ({
+        ...answer(),
+        gaps: [gap('minor', 'send the revised storyboard by Thursday'), gap('blocker', 'move the launch to the twentieth of November')],
+      }),
+    });
     const brief = await generateBrief({ transcript: TRANSCRIPT, timedText: TRANSCRIPT, meeting }, { chain });
-    expect(brief.actionItems).toHaveLength(1);
-    expect(brief.gapResult.notes.join(' ')).toMatch(/could not run/);
+    expect(brief.gapResult.shown.map((g) => g.severity)).toEqual(['blocker', 'minor']);
+    expect(brief.gapResult.shown[0].evidence).toContain('twentieth of November');
   });
 });
 
@@ -198,6 +204,15 @@ describe('formatBrief and splitMessages', () => {
 
   it('never guesses an owner or a date', () => {
     expect(formatBrief(base).join('\n')).toContain('**Owner not stated:** Share the logo files (no date)');
+  });
+
+  it('shows no date, rather than 1 January 1970, when the meeting has no start time', () => {
+    // Pasted notes and uploaded files have no calendar entry behind them.
+    for (const startDateTime of [null, undefined, '']) {
+      const text = formatBrief({ ...base, startDateTime, durationMinutes: 0, attendees: [] }).join('\n');
+      expect(text).not.toMatch(/1970/);
+      expect(text.split('\n')[0]).toBe('**Meeting brief: Sync**');
+    }
   });
 
   it('shows a deadline once, as it was spoken', () => {
