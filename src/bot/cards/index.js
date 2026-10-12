@@ -1,5 +1,7 @@
 const welcomeCard = require('./welcomeCard.json');
 const uncertainMeetingCard = require('./uncertainMeetingCard.json');
+const confirmMeetingCard = require('./confirmMeetingCard.json');
+const chooseOutputCard = require('./chooseOutputCard.json');
 const cbdReadyCard = require('./cbdReadyCard.json');
 
 // Replaces ${token} placeholders anywhere in a card template. Kept deliberately
@@ -33,5 +35,7 @@ module.exports = {
   render,
   buildWelcomeCard: (data) => render(welcomeCard, data),
   buildUncertainMeetingCard: (data) => render(uncertainMeetingCard, data),
+  buildConfirmMeetingCard: (data) => render(confirmMeetingCard, data),
+  buildChooseOutputCard: (data) => render(chooseOutputCard, data),
   buildCbdReadyCard: (data) => render(cbdReadyCard, data),
 };

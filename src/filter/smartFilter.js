@@ -7,11 +7,14 @@ const DECISION = {
 };
 
 const REASON = {
-  INTERNAL: 'skipped_internal',
   SHORT: 'skipped_short',
   EXTERNAL_AND_LONG: 'processed',
+  INTERNAL_AND_LONG: 'internal_and_long',
   UNRESOLVED_ATTENDEES: 'unresolved_attendees',
 };
+
+// What a meeting that passes the filter would produce if the organiser says yes.
+const KIND = { CLIENT: 'client', MEETING: 'meeting' };
 
 function isExternal(email, tenantDomain) {
   if (!email) return false;
@@ -26,8 +29,10 @@ function getDurationMinutes(startDateTime, endDateTime) {
 }
 
 /**
- * Blueprint section 5.2. Returns { decision, reason, durationMinutes, ... }.
- * Pure function over meeting metadata so it is testable without Graph.
+ * Blueprint section 5.2. Returns { decision, kind, reason, durationMinutes, ... }.
+ * `kind` says what saying yes would produce: a client brief for a meeting with
+ * outsiders, a meeting brief for an internal one. Pure function over meeting
+ * metadata so it is testable without Graph.
  */
 function shouldProcessMeeting(meeting, options = {}) {
   const tenantDomain = options.tenantDomain || env.TENANT_DOMAIN;
@@ -45,37 +50,42 @@ function shouldProcessMeeting(meeting, options = {}) {
     attendeeCount: attendees.length,
   };
 
-  // Step 1: external attendee check.
   const externals = attendees.filter((a) => isExternal(a.email, tenantDomain));
   const unresolved = attendees.filter((a) => !a.email);
 
-  if (externals.length === 0) {
-    // All known attendees are internal. Dial-in participants have no email, so
-    // we cannot prove the meeting was internal — ask rather than guess.
-    if (unresolved.length > 0) {
-      return {
-        ...base,
-        decision: DECISION.UNCERTAIN,
-        reason: REASON.UNRESOLVED_ATTENDEES,
-        unresolvedCount: unresolved.length,
-      };
-    }
-    return { ...base, decision: DECISION.SKIP, reason: REASON.INTERNAL };
-  }
-
-  // Step 2: duration check.
+  // Too short to be worth a brief, whatever kind of meeting it was.
   if (durationMinutes < minMinutes) {
     return { ...base, decision: DECISION.SKIP, reason: REASON.SHORT };
   }
 
-  // Step 3: external attendees and long enough — brief it.
+  if (externals.length > 0) {
+    return {
+      ...base,
+      decision: DECISION.PROCESS,
+      kind: KIND.CLIENT,
+      reason: REASON.EXTERNAL_AND_LONG,
+      externalDomains: [
+        ...new Set(externals.map((a) => a.email.split('@')[1].toLowerCase())),
+      ],
+    };
+  }
+
+  // Everyone known is internal, but dial-in participants have no email, so we
+  // cannot prove the meeting was internal - ask what is wanted rather than guess.
+  if (unresolved.length > 0) {
+    return {
+      ...base,
+      decision: DECISION.UNCERTAIN,
+      reason: REASON.UNRESOLVED_ATTENDEES,
+      unresolvedCount: unresolved.length,
+    };
+  }
+
   return {
     ...base,
     decision: DECISION.PROCESS,
-    reason: REASON.EXTERNAL_AND_LONG,
-    externalDomains: [
-      ...new Set(externals.map((a) => a.email.split('@')[1].toLowerCase())),
-    ],
+    kind: KIND.MEETING,
+    reason: REASON.INTERNAL_AND_LONG,
   };
 }
 
@@ -85,4 +95,5 @@ module.exports = {
   getDurationMinutes,
   DECISION,
   REASON,
+  KIND,
 };

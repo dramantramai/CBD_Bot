@@ -12,10 +12,28 @@ describe('smartFilter', () => {
     expect(r.externalDomains).toContain('verdantkitchens.in');
   });
 
-  it('skips a meeting where everyone is internal', () => {
-    const r = shouldProcessMeeting(internalStandup);
+  it('offers a meeting brief for a long internal meeting instead of discarding it', () => {
+    const planning = { ...internalStandup, endDateTime: '2026-09-22T10:40:00Z' };
+    const r = shouldProcessMeeting(planning);
+    expect(r.decision).toBe('process');
+    expect(r.kind).toBe('meeting');
+  });
+
+  it('says a meeting with outsiders would produce a client brief', () => {
+    expect(shouldProcessMeeting(clientMeeting).kind).toBe('client');
+  });
+
+  it('skips a short internal meeting', () => {
+    const r = shouldProcessMeeting(internalStandup); // 12 minutes
     expect(r.decision).toBe('skip');
-    expect(r.reason).toBe('skipped_internal');
+    expect(r.reason).toBe('skipped_short');
+  });
+
+  it('skips a short meeting even when an attendee cannot be resolved', () => {
+    const short = { ...ambiguous, endDateTime: '2026-10-01T10:05:00Z' };
+    const r = shouldProcessMeeting({ ...short, startDateTime: '2026-10-01T10:00:00Z' });
+    expect(r.decision).toBe('skip');
+    expect(r.reason).toBe('skipped_short');
   });
 
   it('asks the user when an attendee cannot be resolved to a domain', () => {
