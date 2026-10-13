@@ -72,7 +72,7 @@ Hosted by: ${meeting?.hostedBy === 'external' ? 'the client' : 'Dramantram'}
 Attendees:
 ${attendees || '- unknown'}
 
-The Dramantram project owner is ${owner.displayName || 'unknown'}${
+The Dramantram project owner is ${owner.displayName || 'not available (leave the projectOwner fields empty)'}${
     owner.email ? ` (${owner.email}${owner.phone ? `, ${owner.phone}` : ''})` : ''
   }.
 Use those owner details verbatim for the projectOwner fields; they come from the

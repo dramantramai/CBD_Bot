@@ -68,6 +68,13 @@ describe('extractCBD fallback chain', () => {
 });
 
 describe('normalize', () => {
+  it('empties a placeholder the model wrote instead of leaving the field blank, and flags it', () => {
+    const r = normalize({ spoc: 'Unknown', escalationPoint: 'Not stated.', confidence: { spoc: 5, escalationPoint: 5 } });
+    expect(r.spoc).toBe('');
+    expect(r.escalationPoint).toBe('');
+    expect(r.needsConfirmation).toEqual(expect.arrayContaining(['spoc', 'escalationPoint']));
+  });
+
   it('scores every field between 1 and 5 and averages them', async () => {
     const r = await extractCBD({ transcript, meeting });
     for (const score of Object.values(r.confidence)) {

@@ -1,4 +1,5 @@
 const { generateJson } = require('../llm/generate');
+const { label } = require('./rules');
 
 const SEVERITIES = new Set(['blocker', 'important', 'minor']);
 const KINDS = ['vague', 'contradiction', 'unanswered', 'deferred', 'assumption', 'no_owner_or_date', 'dependency'];
@@ -53,7 +54,7 @@ function validateAssumptions(raw, allowedFields) {
       // it never outranks a finding that is: capped below blocker.
       severity: a.severity === 'blocker' ? 'important' : SEVERITIES.has(a.severity) ? a.severity : 'minor',
       finding: `Would have to assume: ${assumption}`,
-      evidence: `Field ${field}`,
+      evidence: label(field),
       question: String(a.question || '').trim(),
     });
     if (out.length === MAX_ASSUMPTIONS) break;
@@ -75,7 +76,7 @@ Look only for these, and only where the transcript gives evidence:
 Rules:
 - Every item needs "quote": the exact words copied from the transcript, 3 to 30 words, without speaker names. Never paraphrase. An item without a real quote is discarded.
 - "severity": blocker only when work literally cannot begin or two requirements conflict; a vague word or a deferred item is at most important; otherwise minor.
-- "question": one short question to put to the client that would settle it.
+- "question": one short question to put to the client that settles exactly this finding and asks nothing else.
 - At most 10 items, most serious first. An empty list is a valid answer when the meeting was clear. Do not invent anything.
 Respond with one JSON object and nothing else:
 {"gaps":[{"kind":"...","severity":"...","finding":"...","quote":"...","question":"..."}]}`;
@@ -86,7 +87,7 @@ Rules:
 - "field" must be exactly one of the field names you are given.
 - "assumption" is the smallest guess you would have to make, in one sentence.
 - "severity": blocker (you could not start), important (you could start but risk rework), minor.
-- "question": one short question to the client that would remove the assumption.
+- "question": one short question to the client that removes exactly this assumption and asks nothing else.
 - Do not repeat what the document states clearly. At most 8 items. An empty list is a valid answer.
 Respond with one JSON object and nothing else:
 {"assumptions":[{"field":"...","assumption":"...","severity":"...","question":"..."}]}`;

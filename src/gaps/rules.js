@@ -33,6 +33,12 @@ const CONCRETE_DATE = new RegExp(
 );
 const NUMBER_WORD = /\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|hundred|thousand)\b/i;
 
+// "escalationPoint" -> "Escalation point", for text a person reads.
+const label = (field) => {
+  const t = field.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
+  return t.charAt(0).toUpperCase() + t.slice(1);
+};
+
 const words = (s) => String(s || '').trim().split(/\s+/).filter(Boolean).length;
 
 function finding(field, severity, text, question, value) {
@@ -41,7 +47,7 @@ function finding(field, severity, text, question, value) {
     field,
     severity,
     finding: text,
-    evidence: value ? `Field ${field}: "${value}"` : `Field ${field}`,
+    evidence: value ? `${label(field)}: "${value}"` : label(field),
     question,
   };
 }
@@ -119,4 +125,4 @@ const LABELS = {
 };
 const labelOf = (field) => LABELS[field] || field;
 
-module.exports = { fieldRules, FIELDS, CONCRETE_DATE };
+module.exports = { fieldRules, FIELDS, CONCRETE_DATE, label };

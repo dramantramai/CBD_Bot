@@ -33,6 +33,8 @@ const OPTIONAL_FIELDS = new Set([
   'projectOwnerPhone',
 ]);
 
+const PLACEHOLDER = /^(unknown|n\/a|none|not (stated|specified|provided|mentioned|discussed))\.?$/i;
+
 const FALLBACKS = {
   launchDate: 'TBD, confirm with client',
   keyMessage: 'To be refined post-brief',
@@ -46,6 +48,7 @@ const FALLBACKS = {
  */
 function normalize(raw, { meeting } = {}) {
   const out = {};
+  const blanked = [];
 
   for (const field of STRING_FIELDS) {
     const value = raw[field];
@@ -55,6 +58,11 @@ function normalize(raw, { meeting } = {}) {
         : Array.isArray(value)
           ? value.filter(Boolean).join('\n')
           : String(value).trim();
+    // A model sometimes writes a placeholder instead of leaving the field empty.
+    if (PLACEHOLDER.test(out[field])) {
+      out[field] = '';
+      blanked.push(field);
+    }
   }
 
   // Owner details come from the calendar, not the transcript, so they win.
@@ -97,6 +105,8 @@ function normalize(raw, { meeting } = {}) {
       ? Math.min(5, Math.max(1, Math.round(score)))
       : 1;
   }
+
+  for (const field of blanked) out.confidence[field] = 1; // said "unknown": flag it, not a real answer
 
   // Apply the blueprint's documented fallbacks for anything left blank.
   for (const [field, fallback] of Object.entries(FALLBACKS)) {

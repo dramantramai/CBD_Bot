@@ -127,6 +127,13 @@ describe('method B: evidence is enforced in code', () => {
   });
 });
 
+describe('wording shown to people', () => {
+  it('names a field in words, not as a code identifier', () => {
+    const [f] = fieldRules(goodCbd({ escalationPoint: '', confidence: { ...goodCbd().confidence, escalationPoint: 1 } }));
+    expect(f.evidence).toBe('Escalation point');
+  });
+});
+
 describe('method C: forced assumptions must name a real field', () => {
   const allowed = new Set(['solutionScope', 'launchDate']);
 
@@ -135,7 +142,7 @@ describe('method C: forced assumptions must name a real field', () => {
       { assumptions: [{ field: 'solutionScope', assumption: 'how many films', severity: 'important', question: 'How many?' }] },
       allowed
     );
-    expect(a).toMatchObject({ method: 'C', field: 'solutionScope', severity: 'important', evidence: 'Field solutionScope' });
+    expect(a).toMatchObject({ method: 'C', field: 'solutionScope', severity: 'important', evidence: 'Solution scope' });
   });
 
   it('never calls an inference a blocker, so it cannot outrank a finding that has evidence', () => {
