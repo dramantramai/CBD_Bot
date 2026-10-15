@@ -6,7 +6,8 @@ process.env.FORCE_MOCK_LLM = 'true';
 const require = createRequire(import.meta.url);
 
 const { applyReplay, replayFromNote } = require('../src/replay');
-const { buildNotification, reset, groupMeetings, pick } = require('../scripts/replay');
+const { buildNotification, reset, groupMeetings, pick, defaultUrl } = require('../scripts/replay');
+const { notificationPath } = require('../src/graph/subscriptions');
 const { resourceSegment } = require('../src/routes/webhook');
 const { processMeeting } = require('../src/pipeline');
 const { getDb } = require('../src/db/connection');
@@ -122,5 +123,13 @@ describe('numbering meetings for --list and --pick', () => {
   it('says so when there is no such meeting or transcript', () => {
     expect(() => pick(groupMeetings(transcripts), '3')).toThrow(/no "3" in the list/);
     expect(() => pick(groupMeetings(transcripts), '1.5')).toThrow(/no "1.5" in the list/);
+  });
+});
+
+describe('where the script sends the notification', () => {
+  it('is the path Graph itself is given, so a replay reaches the same route', () => {
+    process.env.PUBLIC_BASE_URL = 'https://bot.example.com';
+    expect(notificationPath()).toBe('/api/webhook');
+    expect(defaultUrl(3978)).toBe(`http://localhost:3978${notificationPath()}`);
   });
 });

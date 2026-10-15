@@ -21,7 +21,9 @@ const baseUrl = () => {
   return env.PUBLIC_BASE_URL.replace(/\/$/, '');
 };
 
-const notificationUrl = () => `${baseUrl()}/api/webhook`;
+// Where the bot listens for Graph (index.js mounts the router under /api); the replay script sends to the same place.
+const notificationPath = () => '/api/webhook';
+const notificationUrl = () => `${baseUrl()}${notificationPath()}`;
 
 // Graph refuses to create a subscription lasting over an hour without
 // somewhere to send lifecycle events, and these last ~70 hours.
@@ -115,6 +117,7 @@ async function renewAll() {
 }
 
 module.exports = {
+  notificationPath,
   subscribeForUser,
   listSubscriptions,
   renewSubscription,

@@ -22,7 +22,7 @@
  *   --minutes 5    pretend the meeting lasted this long (short ones are skipped)
  *   --reset        first forget what the bot already did with this meeting, so it
  *                  is asked about afresh. Needs to run where the bot's database is
- *   --url <url>    where to send it (default: this machine's bot, port from .env)
+ *   --url <url>    where to send it (default: http://localhost:<PORT>/api/webhook)
  *
  * The bot only honours --attendees and --minutes while REPLAY_ENABLED=true in its
  * own .env. Everything else is exactly a real notification.
@@ -80,6 +80,9 @@ async function fetchMeetings(userId) {
   return groupMeetings((await res.json()).value || []);
 }
 
+/** The bot's own webhook, on this machine: the same path Graph is given, under /api. */
+const defaultUrl = (port) => `http://localhost:${port || 3978}${require('../src/graph/subscriptions').notificationPath()}`;
+
 /** Removes what the bot recorded for a meeting, so it will ask about it again. */
 function reset(db, { userId, meetingId }) {
   const logs = db.prepare('DELETE FROM meeting_logs WHERE meeting_id = ? AND user_id = ?').run(meetingId, userId).changes;
@@ -130,7 +133,7 @@ async function main(argv) {
     clientState: process.env.WEBHOOK_CLIENT_STATE,
   });
 
-  const url = arg(argv, 'url') || `http://localhost:${process.env.PORT || 3978}/webhook`;
+  const url = arg(argv, 'url') || defaultUrl(process.env.PORT);
   console.log(`Sending to ${url}${note.replay ? `  (with changes: ${JSON.stringify(note.replay)})` : ''}`);
   const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ value: [note] }) });
   console.log(res.status === 202 ? 'Accepted. Watch Teams, and `pm2 logs` for what the bot does.' : `The bot answered ${res.status}.`);
@@ -138,4 +141,4 @@ async function main(argv) {
 
 if (require.main === module) main(process.argv.slice(2)).catch((e) => { console.error(e.message); process.exit(1); });
 
-module.exports = { buildNotification, reset, groupMeetings, pick };
+module.exports = { buildNotification, reset, groupMeetings, pick, defaultUrl };
