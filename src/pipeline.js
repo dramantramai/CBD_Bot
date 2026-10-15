@@ -15,6 +15,7 @@ const meetingsDb = require('./db/meetings');
 const { suggestProject, clientNotMentioned } = require('./projects/suggest');
 const { askProject } = require('./projects/projectPrompt');
 const { deliverToProject } = require('./projects/deliver');
+const { applyReplay } = require('./replay');
 
 // Gemini's context window swallows a 3-hour meeting whole, but the weaker
 // fallbacks do not, so very long transcripts keep their opening and closing -
@@ -49,13 +50,14 @@ async function processOne({
   botAdapter = null,
   onConfirm,
   onChooseProject,
+  replay,
 }) {
-  const meeting = await adapters.attendees.getMeetingDetails({
+  const meeting = applyReplay(await adapters.attendees.getMeetingDetails({
     meetingId,
     userId,
     joinUrl,
     fixture,
-  });
+  }), replay);
   const attendeeId = userId || (meeting.dramantramUser && meeting.dramantramUser.id);
 
   // Graph can notify more than once for one transcript, so one that was

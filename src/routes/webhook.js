@@ -3,6 +3,7 @@ const { env } = require('../config/env');
 const logger = require('../utils/logger');
 const { processMeeting } = require('../pipeline');
 const { renewAll } = require('../graph/subscriptions');
+const { replayFromNote } = require('../replay');
 
 /**
  * Pulls an id out of a notification's resource path.
@@ -55,7 +56,7 @@ function webhookRouter(botAdapter) {
       }
 
       try {
-        const result = await processMeeting({ meetingId, userId, transcriptId, botAdapter });
+        const result = await processMeeting({ meetingId, userId, transcriptId, botAdapter, replay: replayFromNote(note, env.REPLAY_ENABLED) });
         logger.info({ meetingId, status: result.status }, 'Notification handled');
       } catch (err) {
         logger.error(

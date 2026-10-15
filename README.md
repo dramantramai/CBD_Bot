@@ -136,6 +136,33 @@ The three fixtures each prove a different branch:
 | `internal-standup` | All `@dramantram.com`, 12 min → skipped silently |
 | `ambiguous-meeting` | A dial-in with no email → bot asks before briefing |
 
+
+## Replaying a real meeting, instead of holding another one
+
+`scripts/replay.js` tells the running bot that a meeting has just ended, by sending
+the same notification Graph would, built from a meeting and transcript the
+organiser really has. The bot then runs for real: the card in Teams, the transcript
+from Graph, the model, the project question, the chat.
+
+```bash
+node scripts/replay.js --user <organiser-object-id> --list      # numbered meetings and transcripts
+node scripts/replay.js --user <id> --pick 1.2 --reset           # meeting 1, its second transcript
+node scripts/replay.js --user <id> --pick 1.2 --reset --attendees dev@dramantram.com,ananya@client.com
+node scripts/replay.js --user <id> --pick 1.1 --reset --attendees dev@dramantram.com,ritika@dramantram.com
+node scripts/replay.js --user <id> --pick 1.1 --reset --attendees dev@dramantram.com,dialin
+node scripts/replay.js --user <id> --pick 1.1 --reset --minutes 5
+```
+
+- `--attendees` replaces the attendee list: all internal is an internal meeting, an
+  outside address is a client meeting, `dialin` is a guest the bot cannot identify.
+  `--minutes` pretends the meeting was that long (short ones are skipped). The bot
+  honours both only while `REPLAY_ENABLED=true` is in its own `.env`; switch it on to
+  test and off again after.
+- `--reset` makes the bot forget what it already did with that meeting, so it asks
+  afresh. Run it on the machine that holds the bot's database (the VM).
+- A recurring meeting is two transcripts of one meeting: replay `--pick 1.1`, answer,
+  then `--pick 1.2` (without `--reset`) to see the second session.
+
 ## How it fits together
 
 ```

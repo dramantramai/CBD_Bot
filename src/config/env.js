@@ -29,6 +29,10 @@ const env = {
   UNCERTAIN_TIMEOUT_HOURS: parseFloat(process.env.UNCERTAIN_TIMEOUT_HOURS || '2'),
   TRANSCRIPT_RETENTION_DAYS: parseInt(process.env.TRANSCRIPT_RETENTION_DAYS || '7', 10),
 
+  // Lets a hand-built notification change a real meeting's attendees or length, to test every kind
+  // of meeting from one transcript (src/replay.js). Off unless you are testing.
+  REPLAY_ENABLED: bool(process.env.REPLAY_ENABLED, false),
+
   // Where project files live: 'onedrive' (the project owner's OneDrive) or
   // 'sharepoint' (one site, needs SHAREPOINT_SITE_ID and Sites.Selected).
   PROJECT_STORAGE: process.env.PROJECT_STORAGE || 'onedrive',
