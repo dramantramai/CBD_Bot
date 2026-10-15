@@ -1,5 +1,6 @@
 const express = require('express');
 const cron = require('node-cron');
+const { sweepExpired } = require('./src/filter/uncertainPrompt');
 const { CloudAdapter, ConfigurationBotFrameworkAuthentication } = require('botbuilder');
 
 const { env, assertRealModeConfig } = require('./src/config/env');
@@ -78,6 +79,17 @@ function main() {
       );
     });
   }
+
+  // A prompt that ran out of time while the bot was down is recorded as a No.
+  const sweep = () => {
+    try {
+      sweepExpired();
+    } catch (err) {
+      logger.error({ err: err.message }, 'Sweeping expired prompts failed');
+    }
+  };
+  sweep();
+  cron.schedule('15 * * * *', sweep);
 
   // Blueprint section 13: transcripts and briefs are client data and do not
   // live on this box indefinitely.

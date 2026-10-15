@@ -20,7 +20,7 @@ const { buildWelcomeCard, buildChooseOutputCard } = require('./cards');
 const { sendSignInPrompt, hasSignedIn, completeSignIn } = require('./sso');
 const { saveReference } = require('../db/conversations');
 const { env } = require('../config/env');
-const { settle } = require('../filter/uncertainPrompt');
+const { answer } = require('../filter/uncertainPrompt');
 const { listRecent, briefFiles } = require('../db/meetings');
 const { fileConsentAttachment } = require('./proactive');
 
@@ -208,16 +208,38 @@ class CbdBot extends TeamsActivityHandler {
     }
 
     if (value.action === 'confirmMeeting') {
-      const known = settle(value.meetingId, userId, value.answer);
+      const outcome = answer({
+        meetingId: value.meetingId,
+        userId,
+        answer: value.answer,
+        // The bot was restarted since the card was sent: run the meeting again, answered.
+        resume: (payload, pressed) => {
+          require('../pipeline')
+            .processMeeting({
+              meetingId: payload.fixture ? undefined : payload.meetingId,
+              fixture: payload.fixture,
+              userId,
+              transcriptId: payload.transcriptId,
+              joinUrl: payload.joinUrl,
+              botAdapter: context.adapter,
+              onConfirm: async () => pressed,
+            })
+            .catch((err) => logger.error({ meetingId: payload.meetingId, err: err.message }, 'Could not resume a prompt after a restart'));
+        },
+      });
       const wanted = value.answer !== 'no';
+      const text = {
+        gone: 'I am no longer waiting on that prompt. It was already answered, or it was never mine to ask.',
+        expired:
+          'That prompt has already expired, so I skipped the meeting. Say "client brief" or ' +
+          '"meeting brief" and send me the transcript if you still want one.',
+      }[outcome];
       await context.sendActivity(
-        !known
-          ? 'That prompt has already expired, so I skipped the meeting. Say "client brief" or ' +
-              '"meeting brief" and send me the transcript if you still want one.'
-          : wanted
+        text ||
+          (wanted
             ? `On it - I'll send ${KINDS[value.answer] ? `the ${KINDS[value.answer]}` : 'it'} in a moment.`
             : 'Skipped - nothing was read or generated. I will not ask about that meeting again. ' +
-              'Say "client brief" or "meeting brief" and send me the transcript if you change your mind.'
+              'Say "client brief" or "meeting brief" and send me the transcript if you change your mind.')
       );
       return;
     }

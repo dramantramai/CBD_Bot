@@ -97,6 +97,7 @@ async function processOne({
         userId: attendeeId,
         kind: verdict.kind,
         send: (card) => adapters.proactive.sendCard(botAdapter, attendeeId, card),
+        resumeWith: { transcriptId, joinUrl: meeting.joinUrl || joinUrl, fixture },
       }));
 
   const kind = kindOf(await confirm({ ...meeting, repeat }, verdict), verdict);

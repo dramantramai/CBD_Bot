@@ -180,8 +180,8 @@ describe('answering the meeting prompt', () => {
     expect(await waiting).toBe('no');
   });
 
-  it('says the prompt expired rather than pretending, when nothing is waiting', async () => {
-    expect(await press(user(), 'yes')).toMatch(/already expired/);
+  it('says it is no longer waiting, rather than pretending, when there is no open prompt', async () => {
+    expect(await press(user(), 'yes')).toMatch(/no longer waiting/);
   });
 });
 
