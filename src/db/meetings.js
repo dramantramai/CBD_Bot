@@ -65,7 +65,15 @@ function listRecent(limit = 50) {
     .all(limit);
 }
 
+/** A user's client briefs that produced a file, newest first. */
+function briefFiles(userId, limit = 10) {
+  return getDb()
+    .prepare('SELECT meeting_title, cbd_file_path, created_at FROM meeting_logs WHERE user_id = ? AND cbd_file_path IS NOT NULL ORDER BY created_at DESC LIMIT ?')
+    .all(userId, limit);
+}
+
 module.exports = {
+  briefFiles,
   logMeeting,
   getMeetingLog,
   findByMeetingId,

@@ -13,6 +13,10 @@ pipeline.briefFromText = async (args) => made.push(args);
 const { CbdBot } = require('../src/bot/teamsBot');
 const { askUser } = require('../src/filter/uncertainPrompt');
 const { getReference } = require('../src/db/conversations');
+const { logMeeting } = require('../src/db/meetings');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
 
 const bot = new CbdBot();
 const VTT = 'WEBVTT\n\n00:00:05.000 --> 00:00:09.000\n<v Ritika>I will send the storyboard by Thursday.</v>\n\n00:01:05.000 --> 00:01:09.000\n<v Kabir>Who approves the final cut?</v>\n';
@@ -197,5 +201,54 @@ describe('where a user\'s own briefs are sent', () => {
     const u = user();
     bot.rememberReference(turn(u, 'groupChat', 'project-chat'));
     expect(getReference(u)).toBeNull();
+  });
+});
+
+describe('"last client brief"', () => {
+  const inChat = (userId, conversationType) => {
+    const c = ctx(userId, 'last client brief');
+    c.activity.conversation = { id: 'c', conversationType };
+    return c;
+  };
+  const kept = (userId, title) => {
+    const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'brief-')), `CBD_${title}.docx`);
+    fs.writeFileSync(file, 'docx');
+    logMeeting({ meetingId: `m-${title}`, meetingTitle: title, userId, filterResult: 'processed', cbdGenerated: true, outputKind: 'client_brief', cbdFilePath: file });
+    return file;
+  };
+
+  it('offers the newest brief still on the server through the normal file prompt', async () => {
+    const u = user();
+    kept(u, 'Older');
+    const file = kept(u, 'Newest');
+    const c = inChat(u, 'personal');
+    await bot.handleText(c);
+    const offer = c.sent[0].attachments[0];
+    expect(offer.contentType).toBe('application/vnd.microsoft.teams.card.file.consent');
+    expect(offer.content.acceptContext.filePath).toBe(file);
+    expect(c.sent[0].text).toContain('Newest');
+  });
+
+  it('skips a brief whose file has already been cleared and says nothing is kept when none is left', async () => {
+    const u = user();
+    fs.rmSync(kept(u, 'Gone'));
+    const c = inChat(u, 'personal');
+    await bot.handleText(c);
+    expect(reply(c.sent)).toMatch(/no client brief of yours on the server.*days/);
+  });
+
+  it('never hands someone else\'s brief over', async () => {
+    kept(user(), 'Theirs');
+    const c = inChat(user(), 'personal');
+    await bot.handleText(c);
+    expect(reply(c.sent)).toMatch(/no client brief of yours/);
+  });
+
+  it('sends the person to a personal chat when asked in a group chat', async () => {
+    const u = user();
+    kept(u, 'Mine');
+    const c = inChat(u, 'groupChat');
+    await bot.handleText(c);
+    expect(reply(c.sent)).toMatch(/personal chat/);
   });
 });

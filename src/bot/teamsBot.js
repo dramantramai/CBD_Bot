@@ -21,7 +21,8 @@ const { sendSignInPrompt, hasSignedIn, completeSignIn } = require('./sso');
 const { saveReference } = require('../db/conversations');
 const { env } = require('../config/env');
 const { settle } = require('../filter/uncertainPrompt');
-const { listRecent } = require('../db/meetings');
+const { listRecent, briefFiles } = require('../db/meetings');
+const { fileConsentAttachment } = require('./proactive');
 
 function askForTranscript(kind) {
   const why =
@@ -224,6 +225,26 @@ class CbdBot extends TeamsActivityHandler {
     logger.warn({ value }, 'Unrecognised card action');
   }
 
+  /** Offers the newest client brief still on the server again. Teams' file offer only works in a personal chat. */
+  async resendLastBrief(context, userId) {
+    if (context.activity.conversation?.conversationType !== 'personal') {
+      await context.sendActivity('Ask me for that in our personal chat: Teams can only hand a file over there.');
+      return;
+    }
+    const latest = briefFiles(userId).find((r) => fs.existsSync(r.cbd_file_path));
+    if (!latest) {
+      await context.sendActivity(
+        `I have no client brief of yours on the server. I keep them for ${env.TRANSCRIPT_RETENTION_DAYS} days, then delete them.`
+      );
+      return;
+    }
+    const fileName = path.basename(latest.cbd_file_path);
+    await context.sendActivity({
+      text: `Your latest client brief is **${latest.meeting_title || fileName}**, made ${latest.created_at.slice(0, 10)}. Accept it below to have it sent again.`,
+      attachments: [fileConsentAttachment({ filePath: latest.cbd_file_path, fileName })],
+    });
+  }
+
   async handleText(context) {
     const raw = (context.activity.text || '').trim();
     const text = raw.toLowerCase();
@@ -252,6 +273,11 @@ class CbdBot extends TeamsActivityHandler {
         await context.sendActivity(askForTranscript(kind));
         return;
       }
+    }
+
+    if (text === 'last client brief') {
+      await this.resendLastBrief(context, userId);
+      return;
     }
 
     // A bare "brief" is ambiguous - there are two kinds - so ask which.
@@ -308,7 +334,8 @@ class CbdBot extends TeamsActivityHandler {
         'For a meeting the client hosted, or one I did not pick up, say **"client brief"** or ' +
         '**"meeting brief"** and send me the transcript, or just drop a .vtt here and I will ' +
         'ask which you want.\n\n' +
-        'Say **"status"** to see what I have processed.'
+        'Say **"last client brief"** to have the newest one sent again (I keep them for ' +
+        `${env.TRANSCRIPT_RETENTION_DAYS} days), or **"status"** to see what I have processed.`
     );
   }
 

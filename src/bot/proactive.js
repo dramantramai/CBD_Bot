@@ -55,20 +55,21 @@ async function sendDocument(adapter, userId, { card, filePath, fileName }) {
     return;
   }
 
-  await sendToUser(adapter, userId, {
-    attachments: [
-      {
-        contentType: 'application/vnd.microsoft.teams.card.file.consent',
-        name: fileName,
-        content: {
-          description: 'Your Client Brief Document',
-          sizeInBytes: fs.statSync(filePath).size,
-          acceptContext: { filePath, fileName },
-          declineContext: { fileName },
-        },
-      },
-    ],
-  });
+  await sendToUser(adapter, userId, { attachments: [fileConsentAttachment({ filePath, fileName })] });
 }
 
-module.exports = { sendToUser, sendCard, sendText, sendDocument, NoConversationError };
+/** Teams' own "accept this file?" prompt for a file that sits on the server. */
+function fileConsentAttachment({ filePath, fileName }) {
+  return {
+    contentType: 'application/vnd.microsoft.teams.card.file.consent',
+    name: fileName,
+    content: {
+      description: 'Your Client Brief Document',
+      sizeInBytes: fs.statSync(filePath).size,
+      acceptContext: { filePath, fileName },
+      declineContext: { fileName },
+    },
+  };
+}
+
+module.exports = { sendToUser, sendCard, sendText, sendDocument, fileConsentAttachment, NoConversationError };
