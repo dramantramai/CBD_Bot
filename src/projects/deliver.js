@@ -4,6 +4,7 @@ const logger = require('../utils/logger');
 const adapters = require('../config/adapters');
 const projectsDb = require('../db/projects');
 const { getStorage } = require('../storage');
+const { stampVersion } = require('../docgen/versionHeader');
 const realChat = require('./graphChat');
 const fakeChat = require('./fakeChat');
 
@@ -36,6 +37,8 @@ async function deliverToProject({ project, filePath, summary, meeting, attendeeI
   const organiser = meeting.dramantramUser || { id: attendeeId };
   const folder = `CBD Bot/${projectsDb.projectLabel(project)}`;
   const fileName = projectsDb.nextFileName(project);
+  // The file says which version it is, so a later upload can be checked against what is expected.
+  const content = stampVersion(fs.readFileSync(filePath), { label: projectsDb.projectLabel(project), version: project.current_version + 1, date: new Date() });
 
   // 1. Save the version: the owner's drive first, then the organiser's own.
   const preferred = unique([project.folder_owner, project.created_by, attendeeId]);
@@ -44,7 +47,7 @@ async function deliverToProject({ project, filePath, summary, meeting, attendeeI
   let lastError;
   for (const ownerId of preferred) {
     try {
-      saved = await storage.saveFile({ ownerId, folder, fileName, content: fs.readFileSync(filePath) });
+      saved = await storage.saveFile({ ownerId, folder, fileName, content });
       savedBy = ownerId;
       break;
     } catch (err) {

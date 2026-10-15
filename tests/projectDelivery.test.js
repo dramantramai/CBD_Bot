@@ -11,18 +11,21 @@ const require = createRequire(import.meta.url);
 const { deliverToProject } = require('../src/projects/deliver');
 const { createChat, memberEmails, lookupUserId } = require('../src/projects/graphChat');
 const { createProject, getProject, getVersions } = require('../src/db/projects');
+const { readVersionHeader } = require('../src/docgen/versionHeader');
+const { fillTemplate } = require('../src/docgen/fillTemplate');
 const { getDb } = require('../src/db/connection');
 
-const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deliver-')), 'draft.docx');
-fs.writeFileSync(file, 'docx bytes');
+const file = fillTemplate({ projectName: 'Verdant Video', confidence: {} }, { outputPath: path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'deliver-')), 'draft.docx') });
 
 // ── a recording storage, chat and sender, each able to fail on demand ───────
 let log;
 let fail;
+let saved;
 const storage = {
   name: 'onedrive',
   async saveFile(args) {
     log.push(['save', args.ownerId, args.folder, args.fileName]);
+    saved.push(args);
     if (fail.save && fail.save.includes(args.ownerId)) throw Object.assign(new Error('token expired'), { status: 401 });
     return { ref: `ref-${args.fileName}`, etag: 'e1', webUrl: `https://files/${args.fileName}` };
   },
@@ -69,6 +72,7 @@ const kinds = (...k) => log.filter((e) => k.includes(e[0]));
 let project;
 beforeEach(() => {
   log = [];
+  saved = [];
   fail = {};
   getDb().prepare('DELETE FROM project_versions').run();
   getDb().prepare('DELETE FROM projects').run();
@@ -98,6 +102,20 @@ describe('the first client brief of a project', () => {
   it('shares the folder with everyone in the chat, and the organiser', async () => {
     await run(project);
     expect(kinds('share')[0][2].sort()).toEqual(['dev@dramantram.com', 'rupam@dramantram.com']);
+  });
+});
+
+describe('the file that is saved', () => {
+  it('says which project and version it is, in its header', async () => {
+    await run(project);
+    expect(readVersionHeader(saved[0].content)).toMatchObject({ label: 'VerdantKitchens_Video', version: 1 });
+  });
+
+  it('says v2 in the second version', async () => {
+    await run(project);
+    await run(getProject(project.id));
+    expect(readVersionHeader(saved[1].content)).toMatchObject({ label: 'VerdantKitchens_Video', version: 2 });
+    expect(saved[1].fileName).toBe('VerdantKitchens_Video_v2.docx');
   });
 });
 
