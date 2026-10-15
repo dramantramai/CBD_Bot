@@ -29,6 +29,11 @@ const env = {
   UNCERTAIN_TIMEOUT_HOURS: parseFloat(process.env.UNCERTAIN_TIMEOUT_HOURS || '2'),
   TRANSCRIPT_RETENTION_DAYS: parseInt(process.env.TRANSCRIPT_RETENTION_DAYS || '7', 10),
 
+  // Where project files live: 'onedrive' (the project owner's OneDrive) or
+  // 'sharepoint' (one site, needs SHAREPOINT_SITE_ID and Sites.Selected).
+  PROJECT_STORAGE: process.env.PROJECT_STORAGE || 'onedrive',
+  SHAREPOINT_SITE_ID: process.env.SHAREPOINT_SITE_ID || '',
+
   // Azure AD / Teams — TODO: fill after registering the Azure AD app.
   AZURE_TENANT_ID: process.env.AZURE_TENANT_ID || '',
   AZURE_CLIENT_ID: process.env.AZURE_CLIENT_ID || '',

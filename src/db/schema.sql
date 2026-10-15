@@ -31,3 +31,50 @@ CREATE TABLE IF NOT EXISTS conversation_refs (
   reference  TEXT NOT NULL,   -- JSON ConversationReference
   updated_at TEXT NOT NULL
 );
+
+-- Blueprint section 11.2: projects. A project is identified by its client and
+-- project name (unique, ignoring case), because files are named from them.
+CREATE TABLE IF NOT EXISTS projects (
+  id              TEXT PRIMARY KEY,  -- uuid
+  client_name     TEXT NOT NULL,
+  project_name    TEXT NOT NULL,
+  status          TEXT NOT NULL DEFAULT 'draft',  -- 'draft' | 'shared_with_client' | 'baselined'
+  chat_id         TEXT,              -- the project's Dramantram-only group chat
+  folder_backend  TEXT,              -- 'onedrive' | 'sharepoint'
+  folder_owner    TEXT,              -- whose OneDrive holds the folder
+  folder_name     TEXT,
+  current_version INTEGER NOT NULL DEFAULT 0,
+  last_activity   TEXT,
+  cleared_at      TEXT,
+  created_by      TEXT,
+  created_at      TEXT NOT NULL,
+  updated_at      TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_projects_name ON projects (client_name COLLATE NOCASE, project_name COLLATE NOCASE);
+
+CREATE TABLE IF NOT EXISTS project_versions (
+  id                TEXT PRIMARY KEY,
+  project_id        TEXT NOT NULL REFERENCES projects (id),
+  version           INTEGER NOT NULL,
+  file_name         TEXT NOT NULL,
+  backend           TEXT NOT NULL,   -- which storage wrote it, so switching never orphans a version
+  file_ref          TEXT,
+  uploaded_etag     TEXT,            -- what the bot uploaded, to detect later edits
+  uploaded_at       TEXT NOT NULL,
+  source_meeting_id TEXT,
+  change_summary    TEXT,
+  created_by        TEXT,
+  UNIQUE (project_id, version)
+);
+
+-- Prompts waiting on a person. Held here, not in memory, so a restart or a
+-- deploy does not strand them (slice 2.2).
+CREATE TABLE IF NOT EXISTS pending_decisions (
+  id         TEXT PRIMARY KEY,
+  kind       TEXT NOT NULL,  -- 'confirm_meeting' | 'choose_project' | 'confirm_baseline' | 'confirm_changes'
+  user_id    TEXT NOT NULL,
+  payload    TEXT NOT NULL,  -- JSON
+  status     TEXT NOT NULL DEFAULT 'open',  -- 'open' | 'answered' | 'expired'
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL
+);
