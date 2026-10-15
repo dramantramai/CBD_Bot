@@ -16,8 +16,10 @@ for (const fn of ['sendText', 'sendCard', 'sendDocument']) {
 let fetchedWith = [];
 let available = []; // transcripts Graph holds for the meeting
 const realMock = adapters.transcripts.getTranscript; // the module is the same object, so keep the original before replacing it
-adapters.transcripts.getTranscript = async ({ skipTranscriptIds }) => {
+let focusedOn = [];
+adapters.transcripts.getTranscript = async ({ skipTranscriptIds, focusTranscriptId }) => {
   fetchedWith.push(skipTranscriptIds);
+  focusedOn.push(focusTranscriptId);
   const fresh = available.filter((id) => !skipTranscriptIds.includes(id));
   if (!fresh.length) throw Object.assign(new Error('none'), { name: 'NoTranscriptError' });
   const real = await realMock({ transcriptFixture: 'sample-meeting-1.vtt' });
@@ -33,6 +35,7 @@ beforeEach(() => {
   sent = [];
   asked = [];
   fetchedWith = [];
+  focusedOn = [];
   available = [];
   getDb().prepare('DELETE FROM meeting_logs').run();
 });
@@ -59,6 +62,7 @@ describe('a meeting held again on the same link', () => {
     expect(asked[1].repeat).toBe(true);
     expect(asked[0].repeat).toBe(false);
     expect(fetchedWith[1]).toEqual(['T1']);
+    expect(focusedOn).toEqual(['T1', 'T2']); // each brief is built from the session its own notification named
     expect(result.transcript.transcriptIds).toEqual(['T2']);
   });
 

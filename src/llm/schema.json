@@ -10,7 +10,7 @@
     },
     "launchDate": {
       "type": "string",
-      "description": "Any deadline, launch or delivery date discussed. If none, use \"TBD, confirm with client\"."
+      "description": "Any deadline, launch or delivery date discussed, written as it was said (for example \"22 October\" or \"end of October\"). Never add a year that was not said. If none, use \"TBD, confirm with client\"."
     },
     "projectOwnerName": {
       "type": "string",

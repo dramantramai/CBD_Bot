@@ -129,6 +129,7 @@ async function processOne({
       organizerId: meeting.organizer?.identity?.user?.id,
       transcriptFixture: meeting.transcriptFixture,
       skipTranscriptIds: [...meetingsDb.coveredTranscriptIds(meeting.id, attendeeId)],
+      focusTranscriptId: transcriptId,
     });
   } catch (err) {
     if (err.name !== 'NoTranscriptError') throw err;

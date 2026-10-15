@@ -58,7 +58,7 @@ function buildProjectCard({ meetingId, title, suggestion, projects }) {
     actions.push({ type: 'Action.Submit', title: 'Use the selected project', data: data('existing') });
   }
   body.push(
-    { type: 'TextBlock', text: 'Or start a new project:', wrap: true },
+    { type: 'TextBlock', text: projects.length || suggestion ? 'Or start a new project:' : 'There are no projects yet. Start the first one:', wrap: true },
     { type: 'Input.Text', id: 'clientName', placeholder: 'Client name' },
     { type: 'Input.Text', id: 'projectName', placeholder: 'Project name' }
   );

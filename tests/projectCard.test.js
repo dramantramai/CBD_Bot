@@ -97,6 +97,7 @@ describe('the project card', () => {
     const card = buildProjectCard({ meetingId: 'm', title: 'Sync', suggestion: null, projects: [] });
     expect(submits(card)).toEqual(['new']);
     expect(card.body.some((b) => b.type === 'Input.ChoiceSet')).toBe(false);
+    expect(JSON.stringify(card.body)).toContain('There are no projects yet. Start the first one:');
   });
 });
 

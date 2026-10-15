@@ -126,3 +126,55 @@ describe('dual-path transcript fetch', () => {
     );
   });
 });
+
+describe('which transcripts belong to one session', () => {
+  const at = (id, start, end) => ({ id, createdDateTime: `2026-10-15T${start}:00Z`, endDateTime: `2026-10-15T${end}:00Z` });
+  const ids = (list) => list.map((t) => t.id);
+
+  it('keeps transcripts that overlap together, as when transcription runs in two parts at once', () => {
+    const { sessionOf } = loadTranscripts();
+    const list = [at('a', '05:55', '05:59'), at('b', '05:57', '06:01')];
+    expect(ids(sessionOf(list, 'a'))).toEqual(['a', 'b']);
+  });
+
+  it('keeps a quick stop and restart together', () => {
+    const { sessionOf } = loadTranscripts();
+    const list = [at('a', '10:00', '10:30'), at('b', '10:32', '10:50')];
+    expect(ids(sessionOf(list, 'b'))).toEqual(['a', 'b']);
+  });
+
+  it('separates a meeting held again on the same link a few minutes later', () => {
+    // The real recurring test: ended 11:09, started again 11:14.
+    const { sessionOf } = loadTranscripts();
+    const list = [at('first', '11:06', '11:09'), at('second', '11:14', '11:18')];
+    expect(ids(sessionOf(list, 'first'))).toEqual(['first']);
+    expect(ids(sessionOf(list, 'second'))).toEqual(['second']);
+  });
+
+  it('follows a chain of short gaps, and stops at a long one', () => {
+    const { sessionOf } = loadTranscripts();
+    const list = [at('a', '09:00', '09:10'), at('b', '09:12', '09:20'), at('c', '09:22', '09:30'), at('d', '11:00', '11:10')];
+    expect(ids(sessionOf(list, 'a'))).toEqual(['a', 'b', 'c']);
+    expect(ids(sessionOf(list, 'd'))).toEqual(['d']);
+  });
+
+  it('is the whole meeting when no transcript was named, or the one named is not listed', () => {
+    const { sessionOf } = loadTranscripts();
+    const list = [at('a', '09:00', '09:10'), at('b', '11:00', '11:10')];
+    expect(ids(sessionOf(list, undefined))).toEqual(['a', 'b']);
+    expect(ids(sessionOf(list, 'missing'))).toEqual(['a', 'b']);
+  });
+
+  it('reads only the named session when asked for it', async () => {
+    stubGraph([
+      { match: /communications.*\/transcripts$/, value: { value: [at('first', '11:06', '11:09'), at('second', '11:14', '11:18')] } },
+      { match: /\/transcripts\/first\/content$/, value: 'WEBVTT\n\n00:00:01.000 --> 00:00:04.000\n<v Ananya>The first session.</v>\n' },
+      { match: /\/transcripts\/second\/content$/, value: 'WEBVTT\n\n00:00:01.000 --> 00:00:04.000\n<v Ananya>The second session, with a change.</v>\n' },
+    ]);
+    const { getTranscript } = loadTranscripts();
+    const result = await getTranscript({ meetingId: 'm9', userId: 'u1', focusTranscriptId: 'first' });
+    expect(result.text).toContain('The first session.');
+    expect(result.text).not.toContain('second session');
+    expect(result.transcriptIds).toEqual(['first']);
+  });
+});

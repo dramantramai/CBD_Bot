@@ -1,17 +1,54 @@
 const fs = require('fs');
-const { CardFactory } = require('botbuilder');
+const { CardFactory, TurnContext } = require('botbuilder');
 const logger = require('../utils/logger');
-const { getReference } = require('../db/conversations');
+const { getReference, saveReference } = require('../db/conversations');
 
 class NoConversationError extends Error {
-  constructor(userId) {
+  constructor(userId, reason) {
     super(
-      `No conversation reference for user ${userId}. They must receive or send ` +
-        'one message before the bot can start a conversation with them.'
+      reason ||
+        `No conversation reference for user ${userId}. They must receive or send ` +
+          'one message before the bot can start a conversation with them.'
     );
     this.name = 'NoConversationError';
     this.userId = userId;
   }
+}
+
+const isPersonal = (reference) => !reference.conversation || !reference.conversation.conversationType || reference.conversation.conversationType === 'personal';
+
+/**
+ * Where to reach this person privately. The address saved from an earlier version of
+ * the bot can be a group chat they once wrote in; a private question must never go
+ * there. In that case a fresh personal conversation is opened (the bot is installed
+ * for them, so Teams allows it), saved, and used.
+ */
+async function personalReference(adapter, userId) {
+  const reference = getReference(userId);
+  if (!reference) throw new NoConversationError(userId);
+  if (isPersonal(reference)) return reference;
+
+  const teamsId = reference.user && reference.user.id;
+  const tenantId = reference.conversation && reference.conversation.tenantId;
+  if (!teamsId || !adapter || !adapter.createConversationAsync) {
+    throw new NoConversationError(userId, `The saved address for ${userId} is a group chat, and a private one could not be opened. They should send the bot a message in their personal chat.`);
+  }
+  const botId = process.env.BOT_ID || process.env.AZURE_CLIENT_ID;
+  let opened;
+  await adapter.createConversationAsync(
+    botId,
+    reference.channelId || 'msteams',
+    reference.serviceUrl,
+    null,
+    { isGroup: false, bot: reference.bot, members: [{ id: teamsId }], tenantId, channelData: { tenant: { id: tenantId } } },
+    async (context) => {
+      opened = TurnContext.getConversationReference(context.activity);
+    }
+  );
+  if (!opened) throw new NoConversationError(userId, `Could not open a private conversation with ${userId}.`);
+  saveReference(userId, opened);
+  logger.info({ userId }, 'Replaced a group chat address with a personal one');
+  return opened;
 }
 
 /**
@@ -19,8 +56,7 @@ class NoConversationError extends Error {
  * for, which is captured the first time the user interacts with the bot.
  */
 async function sendToUser(adapter, userId, activity) {
-  const reference = getReference(userId);
-  if (!reference) throw new NoConversationError(userId);
+  const reference = await personalReference(adapter, userId);
 
   await adapter.continueConversationAsync(
     process.env.BOT_ID || process.env.AZURE_CLIENT_ID,
