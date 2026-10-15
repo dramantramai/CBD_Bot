@@ -10,6 +10,26 @@ const emailOf = (identity) => {
 };
 
 /**
+ * The Dramantram person the CBD is for: whoever the bot is acting for, who is
+ * the organiser of any meeting it was notified about. Their own profile is
+ * readable with User.Read, which sign-in already holds. A profile that cannot
+ * be read leaves the owner fields blank and flagged, never invented.
+ */
+function ownerFrom(me, userId) {
+  return {
+    id: userId,
+    displayName: me.displayName || '',
+    email: me.mail || me.userPrincipalName || '',
+    phone: me.mobilePhone || (me.businessPhones && me.businessPhones[0]) || '',
+  };
+}
+
+async function getOwnerProfile(userId) {
+  const client = graphClient(await auth.getDelegatedToken(userId));
+  return ownerFrom(await client.api('/me').select('displayName,mail,userPrincipalName,mobilePhone,businessPhones').get(), userId);
+}
+
+/**
  * Meeting metadata in the shape the smart filter expects. Attendance reports
  * carry the definitive participant list; the meeting object's participants are
  * the invite list, so both are merged.
@@ -86,8 +106,17 @@ async function getMeetingDetails({ meetingId, userId, joinUrl }) {
     organizerEmail &&
     organizerEmail.toLowerCase().endsWith('@' + env.TENANT_DOMAIN.toLowerCase());
 
+  let dramantramUser = { id: userId };
+  try {
+    const me = await client.api('/me').select('displayName,mail,userPrincipalName,mobilePhone,businessPhones').get();
+    dramantramUser = ownerFrom(me, userId);
+  } catch (err) {
+    logger.warn({ userId, err: err.message }, 'Could not read the organiser\'s profile; owner fields will be flagged');
+  }
+
   return {
     id: meeting.id,
+    dramantramUser,
     subject: meeting.subject || 'Untitled meeting',
     joinUrl: meeting.joinWebUrl,
     startDateTime: meeting.startDateTime,
@@ -97,4 +126,4 @@ async function getMeetingDetails({ meetingId, userId, joinUrl }) {
   };
 }
 
-module.exports = { getMeetingDetails };
+module.exports = { getMeetingDetails, getOwnerProfile };

@@ -27,7 +27,7 @@ const env = {
   TENANT_DOMAIN: process.env.TENANT_DOMAIN || 'dramantram.com',
   MIN_MEETING_MINUTES: parseInt(process.env.MIN_MEETING_MINUTES || '15', 10),
   UNCERTAIN_TIMEOUT_HOURS: parseFloat(process.env.UNCERTAIN_TIMEOUT_HOURS || '2'),
-  TRANSCRIPT_RETENTION_DAYS: parseInt(process.env.TRANSCRIPT_RETENTION_DAYS || '30', 10),
+  TRANSCRIPT_RETENTION_DAYS: parseInt(process.env.TRANSCRIPT_RETENTION_DAYS || '7', 10),
 
   // Azure AD / Teams — TODO: fill after registering the Azure AD app.
   AZURE_TENANT_ID: process.env.AZURE_TENANT_ID || '',

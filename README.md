@@ -230,7 +230,7 @@ src/filter/              the 3-step decision tree and the "was this a client?" c
 src/llm/                 Gemini → Groq chain, model rotation, schema
 src/docgen/              the template and the code that fills it
 src/db/                  SQLite schema and CRUD
-src/retention.js         deletes generated briefs after 30 days
+src/retention.js         deletes generated briefs after 7 days
 fixtures/                meetings and transcripts for offline runs
 scripts/                 E2E runner, template map builder
 ```

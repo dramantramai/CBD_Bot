@@ -306,6 +306,11 @@ async function briefFromText({ text, timedText, title, userId, botAdapter, sourc
     hostedBy: 'external',
     dramantramUser: { id: userId },
   };
+  try {
+    meeting.dramantramUser = await adapters.attendees.getOwnerProfile(userId);
+  } catch (err) {
+    logger.warn({ userId, err: err.message }, 'Could not read the profile of whoever supplied the transcript');
+  }
 
   logger.info({ userId, source, kind, chars: text.length }, 'Briefing a supplied transcript');
 

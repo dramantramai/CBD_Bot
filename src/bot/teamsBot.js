@@ -19,6 +19,7 @@ const isFresh = (at) => at > Date.now() - HOLD_MS;
 const { buildWelcomeCard, buildChooseOutputCard } = require('./cards');
 const { sendSignInPrompt, hasSignedIn, completeSignIn } = require('./sso');
 const { saveReference } = require('../db/conversations');
+const { env } = require('../config/env');
 const { settle } = require('../filter/uncertainPrompt');
 const { listRecent } = require('../db/meetings');
 
@@ -371,7 +372,7 @@ class CbdBot extends TeamsActivityHandler {
   async handleTeamsFileConsentDecline(context, response) {
     const { fileName } = response.context || {};
     await context.sendActivity(
-      `No problem - **${fileName}** stays on the server and I won't send it.`
+      `No problem - I won't send it. **${fileName}** stays on the server for ${env.TRANSCRIPT_RETENTION_DAYS} days in case you need it, then it is deleted.`
     );
   }
 

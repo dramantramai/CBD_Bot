@@ -23,4 +23,8 @@ async function getMeetingDetails({ meetingId, fixture }) {
   return match;
 }
 
-module.exports = { getMeetingDetails, loadFixture, allFixtures };
+async function getOwnerProfile(userId) {
+  return { id: userId };
+}
+
+module.exports = { getMeetingDetails, getOwnerProfile, loadFixture, allFixtures };
