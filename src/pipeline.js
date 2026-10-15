@@ -42,6 +42,7 @@ async function processOne({
   userId,
   fixture,
   joinUrl,
+  transcriptId,
   botAdapter = null,
   onConfirm,
 }) {
@@ -53,13 +54,17 @@ async function processOne({
   });
   const attendeeId = userId || (meeting.dramantramUser && meeting.dramantramUser.id);
 
-  // Graph can notify more than once for one meeting (one per transcript
-  // segment), so a meeting that was briefed, or declined, is not revisited.
-  const prior = meetingsDb.priorOutcome(meeting.id, attendeeId);
+  // Graph can notify more than once for one transcript, so one that was
+  // briefed, or declined, is not revisited. A meeting held again on the same
+  // link keeps its meeting ID but brings a new transcript: that is a new
+  // session, and it is asked about afresh.
+  const prior = meetingsDb.priorOutcome(meeting.id, attendeeId, transcriptId);
   if (prior) {
-    logger.info({ meetingId: meeting.id, prior }, 'Already handled; ignoring redelivery');
+    logger.info({ meetingId: meeting.id, transcriptId, prior }, 'Already handled; ignoring redelivery');
     return { status: 'duplicate', meeting };
   }
+  const repeat = meetingsDb.hasEarlierSession(meeting.id, attendeeId);
+  const notified = transcriptId ? [transcriptId] : [];
 
   // ── filter ──────────────────────────────────────────────────────────────
   const verdict = shouldProcessMeeting(meeting);
@@ -75,6 +80,7 @@ async function processOne({
       userId: attendeeId,
       hostedBy: meeting.hostedBy,
       filterResult: verdict.reason,
+      transcriptIds: notified,
     });
     return { status: 'skipped', verdict, meeting };
   }
@@ -93,7 +99,7 @@ async function processOne({
         send: (card) => adapters.proactive.sendCard(botAdapter, attendeeId, card),
       }));
 
-  const kind = kindOf(await confirm(meeting, verdict), verdict);
+  const kind = kindOf(await confirm({ ...meeting, repeat }, verdict), verdict);
   if (!kind) {
     meetingsDb.logMeeting({
       meetingId: meeting.id,
@@ -101,6 +107,7 @@ async function processOne({
       userId: attendeeId,
       hostedBy: meeting.hostedBy,
       filterResult: 'skipped_user',
+      transcriptIds: notified,
     });
     return { status: 'skipped', verdict, meeting };
   }
@@ -114,6 +121,7 @@ async function processOne({
       joinUrl: meeting.joinUrl,
       organizerId: meeting.organizer?.identity?.user?.id,
       transcriptFixture: meeting.transcriptFixture,
+      skipTranscriptIds: [...meetingsDb.coveredTranscriptIds(meeting.id, attendeeId)],
     });
   } catch (err) {
     if (err.name !== 'NoTranscriptError') throw err;
@@ -124,6 +132,7 @@ async function processOne({
       userId: attendeeId,
       hostedBy: meeting.hostedBy,
       filterResult: verdict.reason,
+      transcriptIds: notified,
     });
     await adapters.proactive.sendText(
       botAdapter,
@@ -134,6 +143,9 @@ async function processOne({
     );
     return { status: 'no_transcript', verdict, meeting };
   }
+
+  // Everything read, plus the one named in the notification, now counts as handled.
+  transcript.transcriptIds = [...new Set([...(transcript.transcriptIds || []), ...notified])];
 
   const deliver = kind === 'meeting' ? generateBriefAndDeliver : generateAndDeliver;
   return deliver({ transcript, meeting, attendeeId, botAdapter, verdict });
@@ -183,6 +195,7 @@ async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter,
     outputKind: 'client_brief',
     cbdFilePath: filePath,
     confidenceAvg: cbd.confidenceAvg,
+    transcriptIds: transcript.transcriptIds,
   });
 
   await adapters.proactive.sendDocument(botAdapter, attendeeId, {
@@ -254,6 +267,7 @@ async function generateBriefAndDeliver({ transcript, meeting, attendeeId, botAda
     transcriptSource: transcript.source,
     cbdGenerated: true,
     outputKind: 'meeting_brief',
+    transcriptIds: transcript.transcriptIds,
   });
 
   for (const message of splitMessages(formatBrief(brief))) {

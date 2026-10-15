@@ -24,7 +24,8 @@ function askUser({ meeting, userId, send, kind, timeoutMs }) {
   if (pending.has(id)) return pending.get(id).promise;
 
   const facts = {
-    title: meeting.subject,
+    // A meeting held again on the same link: say so, so the card is not mistaken for a repeat.
+    title: meeting.repeat ? `${meeting.subject} (a new transcript)` : meeting.subject,
     durationMinutes: Math.round(meeting.durationMinutes || 0),
     attendeeCount: (meeting.attendees || []).length,
     meetingId: meeting.id,

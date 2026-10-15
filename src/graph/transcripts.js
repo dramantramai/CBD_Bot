@@ -26,8 +26,8 @@ async function fetchContent(client, url) {
  * restarting makes a second. Taking only the first would quietly lose the rest
  * of the meeting, so every one is fetched.
  */
-async function fetchSegments(client, base, transcripts, meetingId) {
-  const list = transcripts || [];
+async function fetchSegments(client, base, transcripts, meetingId, skip = new Set()) {
+  const list = (transcripts || []).filter((t) => !skip.has(t.id));
   if (list.length === 0) throw new NoTranscriptError(meetingId);
   return Promise.all(
     list.map(async (t) => ({
@@ -46,6 +46,7 @@ function assemble({ segments, source }) {
     timedText: cuesToTimedText(cues),
     source,
     segments: segments.length,
+    transcriptIds: segments.map((s) => s.id).filter(Boolean),
   };
 }
 
@@ -53,7 +54,7 @@ function assemble({ segments, source }) {
  * Path 1 (blueprint 4.5): application permissions. Only works while the meeting
  * lives on the Dramantram tenant.
  */
-async function fetchViaApplication({ meetingId, organizerId }) {
+async function fetchViaApplication({ meetingId, organizerId, skip }) {
   const token = await auth.getAppToken();
   const client = graphClient(token);
 
@@ -62,7 +63,7 @@ async function fetchViaApplication({ meetingId, organizerId }) {
     : `/communications/onlineMeetings/${meetingId}`;
 
   const list = await client.api(`${base}/transcripts`).get();
-  const segments = await fetchSegments(client, base, list.value, meetingId);
+  const segments = await fetchSegments(client, base, list.value, meetingId, skip);
   return { segments, source: 'application' };
 }
 
@@ -70,7 +71,7 @@ async function fetchViaApplication({ meetingId, organizerId }) {
  * Path 2: delegated permissions. The attendee can read the transcript whoever
  * hosted the call, which is the whole point of the SSO sign-in.
  */
-async function fetchViaDelegated({ meetingId, userId, joinUrl }) {
+async function fetchViaDelegated({ meetingId, userId, joinUrl, skip }) {
   const token = await auth.getDelegatedToken(userId);
   const client = graphClient(token);
 
@@ -87,7 +88,7 @@ async function fetchViaDelegated({ meetingId, userId, joinUrl }) {
 
   const base = `/me/onlineMeetings/${id}`;
   const list = await client.api(`${base}/transcripts`).get();
-  const segments = await fetchSegments(client, base, list.value, id);
+  const segments = await fetchSegments(client, base, list.value, id, skip);
   return { segments, source: 'delegated' };
 }
 
@@ -95,9 +96,10 @@ async function fetchViaDelegated({ meetingId, userId, joinUrl }) {
  * Tries application permissions, then delegated. A 401/403/404 on path 1 means
  * the meeting is on someone else's tenant, which is expected, not an error.
  */
-async function getTranscript({ meetingId, userId, joinUrl, organizerId }) {
+async function getTranscript({ meetingId, userId, joinUrl, organizerId, skipTranscriptIds = [] }) {
+  const skip = new Set(skipTranscriptIds);
   try {
-    const result = assemble(await fetchViaApplication({ meetingId, organizerId }));
+    const result = assemble(await fetchViaApplication({ meetingId, organizerId, skip }));
     logger.info(
       { meetingId, source: 'application', segments: result.segments },
       'Transcript fetched'
@@ -113,7 +115,7 @@ async function getTranscript({ meetingId, userId, joinUrl, organizerId }) {
     );
   }
 
-  const result = assemble(await fetchViaDelegated({ meetingId, userId, joinUrl }));
+  const result = assemble(await fetchViaDelegated({ meetingId, userId, joinUrl, skip }));
   logger.info(
     { meetingId, source: 'delegated', segments: result.segments },
     'Transcript fetched'

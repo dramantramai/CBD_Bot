@@ -47,6 +47,7 @@ function webhookRouter(botAdapter) {
       const resource = String(note.resource || '');
       const userId = resourceSegment(resource, 'users');
       const meetingId = resourceSegment(resource, 'onlineMeetings');
+      const transcriptId = resourceSegment(resource, 'transcripts');
 
       if (!userId || !meetingId) {
         logger.warn({ resource }, 'Notification missing user or meeting id');
@@ -54,7 +55,7 @@ function webhookRouter(botAdapter) {
       }
 
       try {
-        const result = await processMeeting({ meetingId, userId, botAdapter });
+        const result = await processMeeting({ meetingId, userId, transcriptId, botAdapter });
         logger.info({ meetingId, status: result.status }, 'Notification handled');
       } catch (err) {
         logger.error(

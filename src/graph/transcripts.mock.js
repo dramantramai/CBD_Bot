@@ -33,6 +33,7 @@ async function getTranscript({ meetingId, transcriptFixture }) {
     timedText: cuesToTimedText(cues),
     source: 'manual_upload',
     segments: 1,
+    transcriptIds: [],
   };
 }
 
