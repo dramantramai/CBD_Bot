@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS meeting_logs (
   output_kind       TEXT,  -- 'client_brief' | 'meeting_brief'
   cbd_file_path     TEXT,
   confidence_avg    REAL,
+  project_id        TEXT,  -- the project a client brief was attached to, if any
   transcript_ids    TEXT,  -- comma-separated Graph transcript IDs this row covers: a repeat notification for one is ignored, a new one is a new session
   created_at        TEXT NOT NULL
 );

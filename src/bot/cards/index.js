@@ -31,7 +31,43 @@ function render(template, data = {}) {
   return walk(template);
 }
 
+/**
+ * Which project is this? One card: a suggestion when there is one, the list of
+ * existing projects, and two boxes for a new one. Built in code, not from a
+ * template, because the list and the optional suggestion change every time.
+ */
+function buildProjectCard({ meetingId, title, suggestion, projects }) {
+  const data = (mode, extra = {}) => ({ action: 'chooseProject', meetingId, mode, ...extra });
+  const body = [
+    { type: 'TextBlock', text: 'Which project is this for?', weight: 'Bolder', size: 'Medium' },
+    { type: 'TextBlock', text: title, wrap: true, isSubtle: true },
+  ];
+  const actions = [];
+  if (suggestion) {
+    body.push({ type: 'TextBlock', text: `This looks like **${suggestion.project.client_name} - ${suggestion.project.project_name}**. ${suggestion.reason}`, wrap: true });
+    actions.push({ type: 'Action.Submit', title: 'Yes, that one', data: data('suggested') });
+  }
+  if (projects.length) {
+    body.push({
+      type: 'Input.ChoiceSet',
+      id: 'projectId',
+      style: 'compact',
+      placeholder: 'Or pick another project',
+      choices: projects.map((p) => ({ title: `${p.client_name} - ${p.project_name}`, value: p.id })),
+    });
+    actions.push({ type: 'Action.Submit', title: 'Use the selected project', data: data('existing') });
+  }
+  body.push(
+    { type: 'TextBlock', text: 'Or start a new project:', wrap: true },
+    { type: 'Input.Text', id: 'clientName', placeholder: 'Client name' },
+    { type: 'Input.Text', id: 'projectName', placeholder: 'Project name' }
+  );
+  actions.push({ type: 'Action.Submit', title: 'Create new project', data: data('new') });
+  return { type: 'AdaptiveCard', $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', version: '1.4', body, actions };
+}
+
 module.exports = {
+  buildProjectCard,
   render,
   buildWelcomeCard: (data) => render(welcomeCard, data),
   buildUncertainMeetingCard: (data) => render(uncertainMeetingCard, data),

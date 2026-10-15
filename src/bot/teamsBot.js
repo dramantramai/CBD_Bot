@@ -21,6 +21,8 @@ const { sendSignInPrompt, hasSignedIn, completeSignIn } = require('./sso');
 const { saveReference } = require('../db/conversations');
 const { env } = require('../config/env');
 const { answer } = require('../filter/uncertainPrompt');
+const { answerProject } = require('../projects/projectPrompt');
+const adapters = require('../config/adapters');
 const { listRecent, briefFiles } = require('../db/meetings');
 const { fileConsentAttachment } = require('./proactive');
 
@@ -155,14 +157,21 @@ class CbdBot extends TeamsActivityHandler {
 
   /** Makes the requested brief from a supplied transcript, and says plainly if it cannot. */
   async makeBrief(context, args) {
-    try {
-      await briefFromText({ ...args, userId: this.userIdOf(context), botAdapter: context.adapter });
-    } catch (err) {
+    const userId = this.userIdOf(context);
+    const botAdapter = context.adapter;
+    // Not awaited: a client brief stops to ask which project, and Teams gives up
+    // on a message that is not answered within seconds. The answer arrives as a
+    // later button press; the result and any failure go out as ordinary messages.
+    Promise.resolve(briefFromText({ ...args, userId, botAdapter })).catch(async (err) => {
       logger.error({ err: err.message, kind: args.kind }, 'Briefing a supplied transcript failed');
-      await context.sendActivity(
-        `I couldn't draft that ${KINDS[args.kind]}: ${err.message}. Try again, or paste the notes instead.`
-      );
-    }
+      await adapters.proactive
+        .sendText(
+          botAdapter,
+          userId,
+          `I couldn't draft that ${KINDS[args.kind]}: ${err.message}. Try again, or paste the notes instead.`
+        )
+        .catch(() => {});
+    });
   }
 
   /** The answer to "which one do you want?", from a dropped file or from a bare "brief". */
@@ -204,6 +213,16 @@ class CbdBot extends TeamsActivityHandler {
 
     if (value.action === 'chooseOutput') {
       await this.handleChooseOutput(context, value);
+      return;
+    }
+
+    if (value.action === 'chooseProject') {
+      const result = answerProject({ meetingId: value.meetingId, userId, value, createdBy: userId });
+      await context.sendActivity(
+        result.ok
+          ? `Got it: **${result.project.client_name} - ${result.project.project_name}**${result.created ? ' (new project)' : ''}. Working on the client brief...`
+          : result.message
+      );
       return;
     }
 

@@ -12,6 +12,8 @@ const { generateBrief, BriefUnavailableError } = require('./brief/generate');
 const { formatBrief, splitMessages } = require('./brief/format');
 const { findGapsForCbd, formatGaps, formatClientFollowUp } = require('./gaps');
 const meetingsDb = require('./db/meetings');
+const { suggestProject, clientNotMentioned } = require('./projects/suggest');
+const { askProject } = require('./projects/projectPrompt');
 
 // Gemini's context window swallows a 3-hour meeting whole, but the weaker
 // fallbacks do not, so very long transcripts keep their opening and closing -
@@ -45,6 +47,7 @@ async function processOne({
   transcriptId,
   botAdapter = null,
   onConfirm,
+  onChooseProject,
 }) {
   const meeting = await adapters.attendees.getMeetingDetails({
     meetingId,
@@ -149,7 +152,7 @@ async function processOne({
   transcript.transcriptIds = [...new Set([...(transcript.transcriptIds || []), ...notified])];
 
   const deliver = kind === 'meeting' ? generateBriefAndDeliver : generateAndDeliver;
-  return deliver({ transcript, meeting, attendeeId, botAdapter, verdict });
+  return deliver({ transcript, meeting, attendeeId, botAdapter, verdict, choose: onChooseProject });
 }
 
 /**
@@ -167,7 +170,54 @@ function kindOf(answer, verdict) {
  * Extract, fill the template, log and send. Shared by the Graph-driven path
  * and by a transcript handed to the bot directly.
  */
-async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter, verdict }) {
+/**
+ * Which project is this client brief for? The organiser always chooses; the bot
+ * only suggests. Returns the project, or null when nobody chose.
+ *
+ * Offline (MOCK_MODE) there is nobody to ask, so a test or script that wants a
+ * project passes `choose`; otherwise the brief is made without one.
+ */
+async function chooseProjectFor({ transcript, meeting, attendeeId, botAdapter, choose }) {
+  const picker =
+    choose ||
+    (env.MOCK_MODE
+      ? async () => ({ project: null, silent: true })
+      : ({ suggestion }) =>
+          askProject({
+            meeting,
+            userId: attendeeId,
+            suggestion,
+            send: (card) => adapters.proactive.sendCard(botAdapter, attendeeId, card),
+          }));
+
+  const suggestion = suggestProject({ meeting, transcriptText: transcript.text });
+  const { project, created, silent } = await picker({ meeting, suggestion, userId: attendeeId });
+
+  if (!project) {
+    if (!silent) {
+      await adapters.proactive.sendText(
+        botAdapter,
+        attendeeId,
+        'I did not hear which project this is for, so this client brief is not attached to one.'
+      );
+    }
+    return null;
+  }
+
+  // One warning, then the choice stands.
+  if (!created && clientNotMentioned({ project, meeting, transcriptText: transcript.text })) {
+    await adapters.proactive.sendText(
+      botAdapter,
+      attendeeId,
+      `Heads-up: **${project.client_name}** is not mentioned in this meeting or its title. I have attached it to ` +
+        `**${project.client_name} - ${project.project_name}** as you chose.`
+    );
+  }
+  return project;
+}
+
+async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter, verdict, choose }) {
+  const project = await chooseProjectFor({ transcript, meeting, attendeeId, botAdapter, choose });
   const text = trimTranscript(transcript.text);
   const cbd = await extractCBD({ transcript: text, meeting });
 
@@ -197,6 +247,7 @@ async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter,
     cbdFilePath: filePath,
     confidenceAvg: cbd.confidenceAvg,
     transcriptIds: transcript.transcriptIds,
+    projectId: project && project.id,
   });
 
   await adapters.proactive.sendDocument(botAdapter, attendeeId, {
@@ -312,7 +363,7 @@ async function processMeeting(args) {
  * Nothing here is inferred about attendees or duration, so the filter is
  * skipped entirely: asking for a brief IS the decision the filter would make.
  */
-async function briefFromText({ text, timedText, title, userId, botAdapter, source = 'manual', kind = 'client' }) {
+async function briefFromText({ text, timedText, title, userId, botAdapter, source = 'manual', kind = 'client', onChooseProject }) {
   if (!text || !text.trim()) throw new Error('No transcript text supplied');
 
   const meeting = {
@@ -336,6 +387,7 @@ async function briefFromText({ text, timedText, title, userId, botAdapter, sourc
     attendeeId: userId,
     botAdapter,
     verdict: { decision: 'process', kind, reason: 'supplied_by_user' },
+    choose: onChooseProject,
   });
 }
 

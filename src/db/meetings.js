@@ -13,14 +13,15 @@ function logMeeting({
   cbdFilePath = null,
   confidenceAvg = null,
   transcriptIds = [],
+  projectId = null,
 }) {
   const id = crypto.randomUUID();
   getDb()
     .prepare(
       `INSERT INTO meeting_logs
          (id, meeting_id, meeting_title, user_id, hosted_by, filter_result,
-          transcript_source, cbd_generated, output_kind, cbd_file_path, confidence_avg, transcript_ids, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          transcript_source, cbd_generated, output_kind, cbd_file_path, confidence_avg, transcript_ids, project_id, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       id,
@@ -35,6 +36,7 @@ function logMeeting({
       cbdFilePath,
       confidenceAvg,
       [...new Set(transcriptIds)].join(',') || null,
+      projectId,
       new Date().toISOString()
     );
   return id;
@@ -71,6 +73,14 @@ function priorOutcome(meetingId, userId, transcriptId) {
   return null;
 }
 
+/** The project this meeting's last client brief was attached to: a meeting held again on the same link usually belongs to it. */
+function lastProjectOf(meetingId) {
+  const row = getDb()
+    .prepare('SELECT project_id FROM meeting_logs WHERE meeting_id = ? AND project_id IS NOT NULL ORDER BY created_at DESC, rowid DESC LIMIT 1')
+    .get(meetingId);
+  return row ? row.project_id : null;
+}
+
 /** Transcripts already dealt with for this meeting, so a later session starts from its own. */
 function coveredTranscriptIds(meetingId, userId) {
   return new Set(findByMeetingId(meetingId, userId).flatMap(idsOf));
@@ -101,6 +111,7 @@ module.exports = {
   findByMeetingId,
   priorOutcome,
   coveredTranscriptIds,
+  lastProjectOf,
   hasEarlierSession,
   listRecent,
 };

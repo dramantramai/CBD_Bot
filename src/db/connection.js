@@ -25,6 +25,7 @@ function getDb() {
   db.exec(fs.readFileSync(path.join(__dirname, 'schema.sql'), 'utf8'));
   addColumnIfMissing(db, 'meeting_logs', 'output_kind', 'TEXT');
   addColumnIfMissing(db, 'meeting_logs', 'transcript_ids', 'TEXT');
+  addColumnIfMissing(db, 'meeting_logs', 'project_id', 'TEXT');
   return db;
 }
 
