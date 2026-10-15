@@ -12,6 +12,7 @@ pipeline.briefFromText = async (args) => made.push(args);
 
 const { CbdBot } = require('../src/bot/teamsBot');
 const { askUser } = require('../src/filter/uncertainPrompt');
+const { getReference } = require('../src/db/conversations');
 
 const bot = new CbdBot();
 const VTT = 'WEBVTT\n\n00:00:05.000 --> 00:00:09.000\n<v Ritika>I will send the storyboard by Thursday.</v>\n\n00:01:05.000 --> 00:01:09.000\n<v Kabir>Who approves the final cut?</v>\n';
@@ -177,5 +178,24 @@ describe('answering the meeting prompt', () => {
 
   it('says the prompt expired rather than pretending, when nothing is waiting', async () => {
     expect(await press(user(), 'yes')).toMatch(/already expired/);
+  });
+});
+
+describe('where a user\'s own briefs are sent', () => {
+  const turn = (userId, conversationType, id) => ({
+    activity: { from: { id: userId }, recipient: { id: 'bot' }, conversation: { id, conversationType }, channelId: 'msteams', serviceUrl: 'https://x' },
+  });
+
+  it('keeps the personal chat, even after the user speaks in a group chat', () => {
+    const u = user();
+    bot.rememberReference(turn(u, 'personal', 'personal-chat'));
+    bot.rememberReference(turn(u, 'groupChat', 'project-chat'));
+    expect(getReference(u).conversation.id).toBe('personal-chat');
+  });
+
+  it('never stores a group chat as a user\'s reference', () => {
+    const u = user();
+    bot.rememberReference(turn(u, 'groupChat', 'project-chat'));
+    expect(getReference(u)).toBeNull();
   });
 });

@@ -40,12 +40,12 @@ class CbdBot extends TeamsActivityHandler {
     // Every turn is a chance to capture the reference we need to DM this user
     // later, when their meeting ends and nobody is looking at Teams.
     this.onTurn(async (context, next) => {
-      const userId = this.userIdOf(context);
-      if (userId) saveReference(userId, TurnContext.getConversationReference(context.activity));
+      this.rememberReference(context);
       await next();
     });
 
     this.onMembersAdded(async (context, next) => {
+      if (context.activity.conversation?.conversationType !== 'personal') return next();
       for (const member of context.activity.membersAdded) {
         if (member.id === context.activity.recipient.id) continue;
         await context.sendActivity({
@@ -74,6 +74,14 @@ class CbdBot extends TeamsActivityHandler {
       }
       await next();
     });
+  }
+
+  /** Only a personal chat is where a user's own briefs go; a group chat must never replace it. */
+  rememberReference(context) {
+    const userId = this.userIdOf(context);
+    if (userId && context.activity.conversation?.conversationType === 'personal') {
+      saveReference(userId, TurnContext.getConversationReference(context.activity));
+    }
   }
 
   userIdOf(context) {

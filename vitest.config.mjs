@@ -17,6 +17,7 @@ export default {
       GEMINI_API_KEY: '',
       GROQ_API_KEY: '',
       HF_API_KEY: '',
+      MIN_MEETING_MINUTES: '15', // the real default, whatever a test machine's .env says
     },
   },
 };
