@@ -26,6 +26,10 @@ async function sendDocument(_adapter, userId, { card, filePath, fileName }) {
   console.log(`      attachment: ${fileName} (${filePath})`);
 }
 
+async function sendToChat(_adapter, _userId, chatId, activity) {
+  console.log(`  [teams -> chat ${chatId}] ${activity.text || '(card)'}`);
+}
+
 class NoConversationError extends Error {}
 
-module.exports = { sendToUser, sendCard, sendText, sendDocument, NoConversationError };
+module.exports = { sendToUser, sendToChat, sendCard, sendText, sendDocument, NoConversationError };

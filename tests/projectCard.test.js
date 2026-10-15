@@ -7,6 +7,7 @@ const require = createRequire(import.meta.url);
 
 const adapters = require('../src/config/adapters');
 let sent = [];
+adapters.proactive.sendToChat = async (_a, _u, chatId, activity) => sent.push({ fn: 'sendToChat', payload: activity.text, chatId });
 for (const fn of ['sendText', 'sendCard', 'sendDocument']) {
   adapters.proactive[fn] = async (_a, _u, payload) => sent.push({ fn, payload });
 }
@@ -196,6 +197,25 @@ describe('a client brief with a project', () => {
     expect(result.status).toBe('processed');
     expect(texts()).toMatch(/not attached to one/);
     expect(logged().project_id).toBeNull();
+  });
+
+  it('is saved as v1, posted in a new project chat, and not sent to the organiser as a file', async () => {
+    const p = createProject({ clientName: 'Verdant Kitchens', projectName: 'Website Kickoff', createdBy: 'dev-user' });
+    const result = await run(async () => ({ project: p, created: true }));
+
+    expect(result.delivery).toMatchObject({ delivered: 'chat', version: 1, fileName: 'VerdantKitchens_WebsiteKickoff_v1.docx' });
+    expect(getProject(p.id)).toMatchObject({ current_version: 1 });
+    expect(getProject(p.id).chat_id).toMatch(/^fake-chat-/);
+    const posted = sent.filter((s) => s.fn === 'sendToChat');
+    expect(posted[0].payload).toContain('Client brief for Verdant Kitchens - Website Kickoff, v1');
+    expect(posted[0].chatId).toBe(getProject(p.id).chat_id);
+    expect(sent.some((s) => s.fn === 'sendDocument')).toBe(false);
+  });
+
+  it('with no project, is sent to the organiser as a file, exactly as before', async () => {
+    await run(async () => ({ project: null, silent: true }));
+    expect(sent.some((s) => s.fn === 'sendDocument')).toBe(true);
+    expect(sent.some((s) => s.fn === 'sendToChat')).toBe(false);
   });
 
   it('does not ask for a meeting brief, which belongs to no project', async () => {

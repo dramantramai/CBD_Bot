@@ -14,6 +14,7 @@ const { findGapsForCbd, formatGaps, formatClientFollowUp } = require('./gaps');
 const meetingsDb = require('./db/meetings');
 const { suggestProject, clientNotMentioned } = require('./projects/suggest');
 const { askProject } = require('./projects/projectPrompt');
+const { deliverToProject } = require('./projects/deliver');
 
 // Gemini's context window swallows a 3-hour meeting whole, but the weaker
 // fallbacks do not, so very long transcripts keep their opening and closing -
@@ -250,6 +251,30 @@ async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter,
     projectId: project && project.id,
   });
 
+  const personal = (t) => adapters.proactive.sendText(botAdapter, attendeeId, t);
+
+  // A client brief for a project lives with the project: saved as its next
+  // version and posted in its chat. Only if it cannot be saved does the file
+  // come to the organiser directly, as it always did.
+  if (project) {
+    const summary = [
+      degraded ? '**Automatic extraction was unavailable, so this draft came from the basic fallback and needs a full manual review.**' : '',
+      `Meeting: ${meeting.subject}`,
+      `Confidence ${cbd.confidenceAvg} / 5, ${cbd.needsConfirmation.length} field(s) tagged [NEEDS CONFIRMATION] in the document. Please review before sending to the client.`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+    const delivery = await deliverToProject({ project, filePath, summary, meeting, attendeeId, botAdapter });
+    if (delivery.notes.length) await personal(delivery.notes.join(' '));
+
+    if (delivery.delivered) {
+      const toChat = (t) => adapters.proactive.sendToChat(botAdapter, attendeeId, delivery.chatId, { text: t });
+      await deliverGaps({ cbd, text, meeting, send: delivery.delivered === 'chat' ? toChat : personal });
+      return { status: 'processed', kind: 'client', verdict, meeting, cbd, filePath, transcript, degraded, project, delivery };
+    }
+    await personal('Sending you the file directly instead.');
+  }
+
   await adapters.proactive.sendDocument(botAdapter, attendeeId, {
     card: buildCbdReadyCard({
       projectName: cbd.projectName,
@@ -266,9 +291,9 @@ async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter,
     fileName: path.basename(filePath),
   });
 
-  await deliverGaps({ cbd, text, meeting, attendeeId, botAdapter });
+  await deliverGaps({ cbd, text, meeting, send: personal });
 
-  return { status: 'processed', kind: 'client', verdict, meeting, cbd, filePath, transcript, degraded };
+  return { status: 'processed', kind: 'client', verdict, meeting, cbd, filePath, transcript, degraded, project };
 }
 
 /**
@@ -276,14 +301,14 @@ async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter,
  * Never part of the document, which may be shared with the client, and never
  * allowed to fail the delivery that already happened.
  */
-async function deliverGaps({ cbd, text, meeting, attendeeId, botAdapter }) {
+async function deliverGaps({ cbd, text, meeting, send }) {
   // The offline extractor reads nothing, so every field would be listed as a gap.
   if (cbd._provider === 'mock') return;
   try {
     const gaps = await findGapsForCbd({ cbd, transcript: text, meeting });
-    await adapters.proactive.sendText(botAdapter, attendeeId, formatGaps(gaps));
+    await send(formatGaps(gaps));
     const followUp = formatClientFollowUp(gaps);
-    if (followUp) await adapters.proactive.sendText(botAdapter, attendeeId, followUp);
+    if (followUp) await send(followUp);
   } catch (err) {
     logger.warn({ meetingId: meeting.id, err: err.message }, 'Gap findings could not be delivered');
   }

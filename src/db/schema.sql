@@ -60,6 +60,7 @@ CREATE TABLE IF NOT EXISTS project_versions (
   file_name         TEXT NOT NULL,
   backend           TEXT NOT NULL,   -- which storage wrote it, so switching never orphans a version
   file_ref          TEXT,
+  file_owner        TEXT,            -- whose drive holds the file (the folder owner, or the organiser if the owner's sign-in had expired)
   uploaded_etag     TEXT,            -- what the bot uploaded, to detect later edits
   uploaded_at       TEXT NOT NULL,
   source_meeting_id TEXT,

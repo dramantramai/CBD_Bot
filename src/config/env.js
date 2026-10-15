@@ -33,6 +33,8 @@ const env = {
   // 'sharepoint' (one site, needs SHAREPOINT_SITE_ID and Sites.Selected).
   PROJECT_STORAGE: process.env.PROJECT_STORAGE || 'onedrive',
   SHAREPOINT_SITE_ID: process.env.SHAREPOINT_SITE_ID || '',
+  // The bot's id in the Teams app catalogue (not the manifest id): Graph needs it to install the bot when a chat is created.
+  TEAMS_CATALOG_APP_ID: process.env.TEAMS_CATALOG_APP_ID || '979f5e8a-0313-49e3-99ad-5b19669e7b93',
 
   // Azure AD / Teams — TODO: fill after registering the Azure AD app.
   AZURE_TENANT_ID: process.env.AZURE_TENANT_ID || '',

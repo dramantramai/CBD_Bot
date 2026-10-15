@@ -32,6 +32,25 @@ async function sendToUser(adapter, userId, activity) {
   logger.info({ userId }, 'Proactive message sent');
 }
 
+/**
+ * Sends into a group chat the bot is in. The service address comes from the
+ * person's own conversation reference (same tenant, same region); the chat is
+ * named by its ID. Never stores the chat as anyone's address.
+ */
+async function sendToChat(adapter, userId, chatId, activity) {
+  const reference = getReference(userId);
+  if (!reference) throw new NoConversationError(userId);
+  const chatReference = {
+    ...reference,
+    activityId: undefined,
+    conversation: { id: chatId, isGroup: true, conversationType: 'groupChat', tenantId: reference.conversation && reference.conversation.tenantId },
+  };
+  await adapter.continueConversationAsync(process.env.BOT_ID || process.env.AZURE_CLIENT_ID, chatReference, async (context) => {
+    await context.sendActivity(activity);
+  });
+  logger.info({ chatId }, 'Message sent to a project chat');
+}
+
 const sendCard = (adapter, userId, card) =>
   sendToUser(adapter, userId, {
     attachments: [CardFactory.adaptiveCard(card)],
@@ -72,4 +91,4 @@ function fileConsentAttachment({ filePath, fileName }) {
   };
 }
 
-module.exports = { sendToUser, sendCard, sendText, sendDocument, fileConsentAttachment, NoConversationError };
+module.exports = { sendToUser, sendToChat, sendCard, sendText, sendDocument, fileConsentAttachment, NoConversationError };
