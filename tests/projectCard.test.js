@@ -221,8 +221,15 @@ describe('a client brief with a project', () => {
 
   it('does not ask for a meeting brief, which belongs to no project', async () => {
     let asked = false;
-    await run(async () => { asked = true; return { project: null }; }, 'internal-planning');
+    await processMeeting({ fixture: 'internal-planning', onConfirm: async () => 'meeting', onChooseProject: async () => { asked = true; return { project: null }; } });
     expect(asked).toBe(false);
+  });
+
+  it('asks for the project when an internal meeting is made into a client brief', async () => {
+    let asked = false;
+    const result = await processMeeting({ fixture: 'internal-planning', onConfirm: async () => 'client', onChooseProject: async () => { asked = true; return { project: null, silent: true }; } });
+    expect(result).toMatchObject({ status: 'processed', kind: 'client' });
+    expect(asked).toBe(true);
   });
 });
 

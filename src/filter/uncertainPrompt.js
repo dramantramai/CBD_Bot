@@ -16,6 +16,12 @@ const QUESTION = {
   meeting: { question: 'Should I generate a meeting brief for this meeting?', yesTitle: 'Yes, generate meeting brief' },
 };
 
+// The three-way question, worded for why it is being asked.
+const PROMPT = {
+  internal_and_long: 'Everyone in it was from Dramantram. What would you like me to make?',
+  default: 'I could not tell whether this was a client meeting. What would you like?',
+};
+
 /**
  * Asks the organiser what to make and waits for the answer: a plain Yes / No
  * when the meeting's kind is known, or a single three-way question when it is
@@ -23,7 +29,7 @@ const QUESTION = {
  * Auto-resolves 'no' after UNCERTAIN_TIMEOUT_HOURS so stale prompts don't pile
  * up (blueprint 5.4).
  */
-function askUser({ meeting, userId, send, kind, timeoutMs, resumeWith = {} }) {
+function askUser({ meeting, userId, send, kind, reason, timeoutMs, resumeWith = {} }) {
   const id = key(meeting.id, userId);
   if (pending.has(id)) return pending.get(id).promise;
 
@@ -36,7 +42,7 @@ function askUser({ meeting, userId, send, kind, timeoutMs, resumeWith = {} }) {
   };
   const card = QUESTION[kind]
     ? buildConfirmMeetingCard({ ...facts, ...QUESTION[kind] })
-    : buildUncertainMeetingCard(facts);
+    : buildUncertainMeetingCard({ ...facts, prompt: PROMPT[reason] || PROMPT.default });
 
   let resolve;
   const promise = new Promise((r) => {

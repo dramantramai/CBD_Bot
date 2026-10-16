@@ -102,6 +102,7 @@ async function processOne({
         meeting: { ...m, durationMinutes: verdict.durationMinutes },
         userId: attendeeId,
         kind: verdict.kind,
+        reason: verdict.reason,
         send: (card) => adapters.proactive.sendCard(botAdapter, attendeeId, card),
         resumeWith: { transcriptId, joinUrl: meeting.joinUrl || joinUrl, fixture },
       }));

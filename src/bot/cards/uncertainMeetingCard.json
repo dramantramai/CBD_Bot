@@ -13,7 +13,7 @@
     },
     {
       "type": "TextBlock",
-      "text": "I could not tell whether this was a client meeting. What would you like?",
+      "text": "${prompt}",
       "wrap": true
     }
   ],

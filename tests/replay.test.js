@@ -71,8 +71,10 @@ describe('one transcript standing in for every kind of meeting', () => {
   };
   beforeEach(() => getDb().prepare('DELETE FROM meeting_logs').run());
 
-  it('stays an internal meeting unless changed', async () => {
-    expect((await kindOf(undefined)).verdict.kind).toBe('meeting');
+  it('stays an internal meeting unless changed: asked what to make, with no default', async () => {
+    const { verdict } = await kindOf(undefined);
+    expect(verdict).toMatchObject({ decision: 'uncertain', reason: 'internal_and_long' });
+    expect(verdict.kind).toBeUndefined();
   });
 
   it('becomes a client meeting with an outside attendee', async () => {

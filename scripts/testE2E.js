@@ -34,7 +34,7 @@ const { formatBrief, splitMessages } = require('../src/brief/format');
 const EXPECTED = {
   'client-meeting': { status: 'processed', answerUncertain: true },
   'internal-standup': { status: 'skipped', answerUncertain: null }, // 12 minutes: too short
-  'internal-planning': { status: 'processed', answerUncertain: true }, // a meeting brief
+  'internal-planning': { status: 'processed', answerUncertain: true, answer: 'meeting' }, // internal: asked client / meeting / skip; the harness picks a meeting brief
   'ambiguous-meeting': { status: 'processed', answerUncertain: true },
 };
 const DEFAULT_EXPECTATION = { status: 'processed', answerUncertain: true };
@@ -94,7 +94,7 @@ async function runFixture(name) {
     onConfirm: async (meeting, verdict) => {
       const what = verdict && verdict.kind === 'meeting' ? 'meeting brief' : 'client brief';
       console.log(dim(`   (bot asked: generate a ${what} for "${meeting.subject}"?)`));
-      return expected.answerUncertain === true;
+      return expected.answer || expected.answerUncertain === true;
     },
   });
 

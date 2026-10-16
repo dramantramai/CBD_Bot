@@ -94,7 +94,7 @@ describe('meeting brief for an internal meeting', () => {
   });
 
   it('after a Yes, sends the brief with owners, deadlines and the open question', async () => {
-    const result = await processMeeting({ fixture: 'internal-planning', onConfirm: ask('yes') });
+    const result = await processMeeting({ fixture: 'internal-planning', onConfirm: ask('meeting') });
     expect(result).toMatchObject({ status: 'processed', kind: 'meeting' });
 
     const text = texts().join('\n');
@@ -106,19 +106,19 @@ describe('meeting brief for an internal meeting', () => {
   });
 
   it('leaves out an invented action item and says so', async () => {
-    await processMeeting({ fixture: 'internal-planning', onConfirm: ask('yes') });
+    await processMeeting({ fixture: 'internal-planning', onConfirm: ask('meeting') });
     const text = texts().join('\n');
     expect(text).not.toContain('Pay the invoice');
     expect(text).toMatch(/1 item could not be matched to the transcript and was left out/);
   });
 
   it('makes one model call for a meeting that fits one piece', async () => {
-    await processMeeting({ fixture: 'internal-planning', onConfirm: ask('yes') });
+    await processMeeting({ fixture: 'internal-planning', onConfirm: ask('meeting') });
     expect(modelCalls).toHaveLength(1);
   });
 
   it('records which output was made, and makes a client brief file for none', async () => {
-    await processMeeting({ fixture: 'internal-planning', onConfirm: ask('yes') });
+    await processMeeting({ fixture: 'internal-planning', onConfirm: ask('meeting') });
     const [row] = getDb().prepare('SELECT * FROM meeting_logs').all();
     expect(row).toMatchObject({ output_kind: 'meeting_brief', cbd_generated: 1, cbd_file_path: null });
     expect(cbdCalls).toBe(0);
@@ -126,7 +126,7 @@ describe('meeting brief for an internal meeting', () => {
 
   it('says so, and records nothing, when the models are all down, so asking again is not blocked', async () => {
     mode = 'down';
-    const result = await processMeeting({ fixture: 'internal-planning', onConfirm: ask('yes') });
+    const result = await processMeeting({ fixture: 'internal-planning', onConfirm: ask('meeting') });
     expect(result.status).toBe('failed');
     expect(texts().join('\n')).toMatch(/could not generate the meeting brief/);
     expect(getDb().prepare('SELECT * FROM meeting_logs').all()).toEqual([]);

@@ -12,11 +12,12 @@ describe('smartFilter', () => {
     expect(r.externalDomains).toContain('verdantkitchens.in');
   });
 
-  it('offers a meeting brief for a long internal meeting instead of discarding it', () => {
+  it('asks what is wanted for a long internal meeting, since it may be about a client project', () => {
     const planning = { ...internalStandup, endDateTime: '2026-09-22T10:40:00Z' };
     const r = shouldProcessMeeting(planning);
-    expect(r.decision).toBe('process');
-    expect(r.kind).toBe('meeting');
+    expect(r.decision).toBe('uncertain');
+    expect(r.reason).toBe('internal_and_long');
+    expect(r.kind).toBeUndefined(); // no default: client brief, meeting brief or skip
   });
 
   it('says a meeting with outsiders would produce a client brief', () => {

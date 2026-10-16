@@ -81,10 +81,12 @@ function shouldProcessMeeting(meeting, options = {}) {
     };
   }
 
+  // Everyone is internal, but an internal meeting can still be about a client's project
+  // (a team working out a brief), so what to make is the organiser's call: client brief,
+  // meeting brief, or neither.
   return {
     ...base,
-    decision: DECISION.PROCESS,
-    kind: KIND.MEETING,
+    decision: DECISION.UNCERTAIN,
     reason: REASON.INTERNAL_AND_LONG,
   };
 }
