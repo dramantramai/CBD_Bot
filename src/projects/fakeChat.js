@@ -4,7 +4,8 @@ let counter = 0;
 
 module.exports = {
   chats,
-  selfId: async () => 'fake-self',
+  // The organiser is looked up by address like everyone else (as in Graph, where it is the same id), so they are not counted twice.
+  selfId: async () => null,
   lookupUserId: async (_token, email) => `id-of-${email}`,
   memberEmails: async (_token, chatId) => ((chats.get(chatId) || {}).memberIds || []).map((id) => id.replace(/^id-of-/, '')),
   createChat: async (_token, { topic, memberIds }) => {

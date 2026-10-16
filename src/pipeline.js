@@ -13,6 +13,7 @@ const { generateBrief, BriefUnavailableError } = require('./brief/generate');
 const { formatBrief, splitMessages } = require('./brief/format');
 const { findGapsForCbd, formatGaps, formatClientFollowUp } = require('./gaps');
 const meetingsDb = require('./db/meetings');
+const projectsDb = require('./db/projects');
 const { suggestProject, clientNotMentioned } = require('./projects/suggest');
 const { askProject } = require('./projects/projectPrompt');
 const { deliverToProject } = require('./projects/deliver');
@@ -379,6 +380,12 @@ async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter,
     if (delivery.delivered) {
       const toChat = (t) => adapters.proactive.sendToChat(botAdapter, attendeeId, delivery.chatId, { text: t });
       await deliverGaps({ cbd, text, meeting, send: delivery.delivered === 'chat' ? toChat : personal });
+      // The brief is in the project chat, not here, so say it is done and where it is: the last thing in
+      // this chat would otherwise be "working on it". (When it came here as a link there is nothing to add.)
+      if (delivery.delivered === 'chat') {
+        const chatName = projectsDb.projectLabel(project);
+        await personal(`Done: **${project.client_name} - ${project.project_name}** v${delivery.version} is posted in the project chat, [${chatName}](https://teams.microsoft.com/l/chat/${encodeURIComponent(delivery.chatId)}/0).`);
+      }
       return { status: 'processed', kind: 'client', verdict, meeting, cbd, filePath, transcript, degraded, project, delivery };
     }
     await personal('Sending you the file directly instead.');

@@ -53,7 +53,7 @@ describe('the confirmation before a new version, in Teams', () => {
   it('approves, and says it is generating', async () => {
     const u = user();
     const waiting = open('cm-bot1', u);
-    expect(await press(u, { action: 'confirmMerge', meetingId: 'cm-bot1', choice: 'yes' })).toMatch(/Generating the new version/);
+    expect(await press(u, { action: 'confirmMerge', meetingId: 'cm-bot1', choice: 'yes' })).toMatch(/Generating the new version. I will tell you here when it is posted/);
     expect((await waiting).choice).toBe('yes');
   });
 

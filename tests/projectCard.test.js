@@ -27,6 +27,7 @@ const verdant = () => createProject({ clientName: 'Verdant Kitchens', projectNam
 
 beforeEach(() => {
   sent = [];
+  require('../src/storage/fake').files.clear(); // the in-memory drive keeps files between tests
   getDb().prepare('DELETE FROM project_versions').run();
   getDb().prepare('DELETE FROM projects').run();
   getDb().prepare('DELETE FROM meeting_logs').run();
@@ -211,6 +212,22 @@ describe('a client brief with a project', () => {
     expect(posted[0].payload).toContain('Client brief for Verdant Kitchens - Website Kickoff, v1');
     expect(posted[0].chatId).toBe(getProject(p.id).chat_id);
     expect(sent.some((s) => s.fn === 'sendDocument')).toBe(false);
+  });
+
+  it('tells the organiser, in their own chat, that it is done and where it is: the last thing there is not "working on it"', async () => {
+    const p = createProject({ clientName: 'Zanzibar Spices', projectName: 'Launch', createdBy: 'dev-user' });
+    await run(async () => ({ project: p, created: true }));
+    const privateMessages = sent.filter((s) => s.fn === 'sendText').map((s) => s.payload);
+    const last = privateMessages.at(-1);
+    expect(last).toMatch(/^Done: \*\*Zanzibar Spices - Launch\*\* v1 is posted in the project chat, \[ZanzibarSpices_Launch\]\(https:\/\/teams\.microsoft\.com\/l\/chat\//);
+    // and it comes after everything else the bot sent for this brief
+    expect(sent.at(-1)).toMatchObject({ fn: 'sendText', payload: last });
+  });
+
+  it('adds nothing of the sort when the brief came to the organiser as a link', async () => {
+    const p = createProject({ clientName: 'Solo Client', projectName: 'Alone', createdBy: 'dev-user' });
+    await processMeeting({ fixture: 'ambiguous-meeting', onConfirm: async () => 'client', onChooseProject: async () => ({ project: p, created: true }) });
+    expect(sent.some((s) => s.fn === 'sendText' && /^Done:/.test(s.payload))).toBe(false);
   });
 
   it('with no project, is sent to the organiser as a file, exactly as before', async () => {
