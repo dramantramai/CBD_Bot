@@ -17,12 +17,12 @@
     {
       "type": "Action.Submit",
       "title": "${yesTitle}",
-      "data": { "action": "confirmMeeting", "answer": "yes", "meetingId": "${meetingId}" }
+      "data": { "action": "confirmMeeting", "answer": "yes", "meetingId": "${meetingId}", "decisionId": "${decisionId}" }
     },
     {
       "type": "Action.Submit",
       "title": "No, skip",
-      "data": { "action": "confirmMeeting", "answer": "no", "meetingId": "${meetingId}" }
+      "data": { "action": "confirmMeeting", "answer": "no", "meetingId": "${meetingId}", "decisionId": "${decisionId}" }
     }
   ]
 }

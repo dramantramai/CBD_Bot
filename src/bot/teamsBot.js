@@ -229,6 +229,7 @@ class CbdBot extends TeamsActivityHandler {
     if (value.action === 'confirmMeeting') {
       const outcome = answer({
         meetingId: value.meetingId,
+        decisionId: value.decisionId,
         userId,
         answer: value.answer,
         // The bot was restarted since the card was sent: run the meeting again, answered.

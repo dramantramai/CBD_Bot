@@ -114,6 +114,46 @@ describe('a button pressed for another kind on a card that already made one', ()
   });
 });
 
+describe('two sessions of one meeting at the same time', () => {
+  it('works on each, where it used to drop the second because the first was still waiting', async () => {
+    available = ['T1', 'T2'];
+    let release;
+    const slow = new Promise((r) => { release = r; });
+    const first = processMeeting({ fixture: 'client-meeting', transcriptId: 'T1', onConfirm: () => slow });
+    await new Promise((r) => setTimeout(r, 20));
+    const second = await processMeeting({ fixture: 'client-meeting', transcriptId: 'T2', onConfirm: ask('no') });
+    expect(second.status).toBe('skipped'); // reached the question, was not dropped
+    release('client');
+    expect((await first).status).toBe('processed');
+  });
+
+  it('still drops the same transcript arriving twice while it is being handled', async () => {
+    available = ['T1'];
+    let release;
+    const slow = new Promise((r) => { release = r; });
+    const first = processMeeting({ fixture: 'client-meeting', transcriptId: 'T1', onConfirm: () => slow });
+    await new Promise((r) => setTimeout(r, 20));
+    expect((await processMeeting({ fixture: 'client-meeting', transcriptId: 'T1', onConfirm: ask('client') })).status).toBe('duplicate');
+    release('client');
+    await first;
+  });
+
+  it('tells the person, rather than doing nothing, when a second card is answered for a session already briefed', async () => {
+    // Two transcripts of one session (they overlap), so two cards; the second is answered first and
+    // its brief reads both. Answering the first card afterwards must not make the brief again.
+    available = ['T1', 'T2'];
+    let release;
+    const slow = new Promise((r) => { release = r; });
+    const waiting = processMeeting({ fixture: 'client-meeting', transcriptId: 'T1', onConfirm: () => slow });
+    await new Promise((r) => setTimeout(r, 20));
+    await run('T2');
+    release('client');
+    const result = await waiting;
+    expect(result.status).toBe('duplicate');
+    expect(sent.some((m) => m.fn === 'sendText' && /already covered/.test(m.payload))).toBe(true);
+  });
+});
+
 describe('what the organiser sees', () => {
   it('names the meeting as a new transcript when it was held before', async () => {
     const { askUser, settle } = require('../src/filter/uncertainPrompt');

@@ -15,17 +15,25 @@ function createDecision({ kind, userId, payload, expiresAt }) {
 }
 
 /** The open prompt for this person and meeting, if any (it may be past its expiry: the caller decides). */
-function findOpen({ kind, userId, meetingId }) {
+function findOpen({ kind, userId, meetingId, transcriptId }) {
+  // With a transcript: that session's card only. Without: the newest card for the meeting (cards
+  // sent before buttons carried an id).
+  const bySession = transcriptId === undefined ? '' : " AND COALESCE(json_extract(payload, '$.transcriptId'), '') = ?";
+  const args = transcriptId === undefined ? [kind, userId, meetingId] : [kind, userId, meetingId, transcriptId];
   return parse(
     getDb()
       .prepare(
         `SELECT * FROM pending_decisions
-         WHERE kind = ? AND user_id = ? AND status = 'open' AND json_extract(payload, '$.meetingId') = ?
+         WHERE kind = ? AND user_id = ? AND status = 'open' AND json_extract(payload, '$.meetingId') = ?${bySession}
          ORDER BY created_at DESC, rowid DESC LIMIT 1`
       )
-      .get(kind, userId, meetingId)
+      .get(...args)
   );
 }
+
+/** This one card, if it is still open and belongs to this person. */
+const getOpenById = (id, userId) =>
+  parse(getDb().prepare("SELECT * FROM pending_decisions WHERE id = ? AND user_id = ? AND status = 'open'").get(id, userId));
 
 // Only an open prompt changes: once answered or expired, that is what it stays.
 const setStatus = (id, status) => getDb().prepare("UPDATE pending_decisions SET status = ? WHERE id = ? AND status = 'open'").run(status, id);
@@ -37,4 +45,4 @@ const openPastExpiry = (at = Date.now()) =>
     .all(new Date(at).toISOString())
     .map(parse);
 
-module.exports = { createDecision, findOpen, setStatus, openPastExpiry };
+module.exports = { createDecision, findOpen, getOpenById, setStatus, openPastExpiry };

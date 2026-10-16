@@ -10,7 +10,8 @@ const KEEPS_CARD_OPEN = new Set(['client', 'meeting']);
 // meetingId -> { meeting, userId, timer, resolve }
 const pending = new Map();
 
-const key = (meetingId, userId) => `${userId || 'unknown'}::${meetingId}`;
+// One waiter per person, meeting and session: a later session of the same meeting is its own question.
+const key = (meetingId, userId, transcriptId = '') => `${userId || 'unknown'}::${meetingId}::${transcriptId || ''}`;
 
 const QUESTION = {
   client: { question: 'Should I generate a client brief for this meeting?', yesTitle: 'Yes, generate client brief' },
@@ -32,19 +33,9 @@ const PROMPT = {
  * up (blueprint 5.4).
  */
 function askUser({ meeting, userId, send, kind, reason, timeoutMs, resumeWith = {} }) {
-  const id = key(meeting.id, userId);
+  const transcriptId = resumeWith.transcriptId || '';
+  const id = key(meeting.id, userId, transcriptId);
   if (pending.has(id)) return pending.get(id).promise;
-
-  const facts = {
-    // A meeting held again on the same link: say so, so the card is not mistaken for a repeat.
-    title: meeting.repeat ? `${meeting.subject} (a new transcript)` : meeting.subject,
-    durationMinutes: Math.round(meeting.durationMinutes || 0),
-    attendeeCount: (meeting.attendees || []).length,
-    meetingId: meeting.id,
-  };
-  const card = QUESTION[kind]
-    ? buildConfirmMeetingCard({ ...facts, ...QUESTION[kind] })
-    : buildUncertainMeetingCard({ ...facts, prompt: PROMPT[reason] || PROMPT.default });
 
   let resolve;
   const promise = new Promise((r) => {
@@ -55,8 +46,9 @@ function askUser({ meeting, userId, send, kind, reason, timeoutMs, resumeWith = 
 
   // The same question may already be on screen: a restart lost the waiter but
   // not the card, and Graph can send the notification again. Ask once, and let
-  // the existing card answer this waiter.
-  const open = decisions.findOpen({ kind: KIND, userId, meetingId: meeting.id });
+  // the existing card answer this waiter. Only the same session counts: another
+  // transcript of the meeting is a new question, even if the earlier card is still open.
+  const open = decisions.findOpen({ kind: KIND, userId, meetingId: meeting.id, transcriptId });
   const reusable = open && new Date(open.expires_at).getTime() > Date.now() ? open : null;
   const decisionId =
     (reusable && reusable.id) ||
@@ -73,10 +65,22 @@ function askUser({ meeting, userId, send, kind, reason, timeoutMs, resumeWith = 
       },
     });
 
+  const facts = {
+    // A meeting held again on the same link: say so, so the card is not mistaken for a repeat.
+    title: meeting.repeat ? `${meeting.subject} (a new transcript)` : meeting.subject,
+    durationMinutes: Math.round(meeting.durationMinutes || 0),
+    attendeeCount: (meeting.attendees || []).length,
+    meetingId: meeting.id,
+    decisionId, // each button says which card it belongs to
+  };
+  const card = QUESTION[kind]
+    ? buildConfirmMeetingCard({ ...facts, ...QUESTION[kind] })
+    : buildUncertainMeetingCard({ ...facts, prompt: PROMPT[reason] || PROMPT.default });
+
   const timer = setTimeout(() => {
     logger.info({ meetingId: meeting.id }, 'Uncertain prompt timed out; skipping');
     decisions.setStatus(decisionId, 'expired');
-    settle(meeting.id, userId, 'no');
+    settleEntry(id, 'no');
   }, ms);
   if (timer.unref) timer.unref();
 
@@ -85,9 +89,7 @@ function askUser({ meeting, userId, send, kind, reason, timeoutMs, resumeWith = 
   return promise;
 }
 
-/** Called by the bot when the user taps a button on the card. */
-function settle(meetingId, userId, answer) {
-  const id = key(meetingId, userId);
+function settleEntry(id, answer) {
   const entry = pending.get(id);
   if (!entry) return false;
   clearTimeout(entry.timer);
@@ -96,6 +98,16 @@ function settle(meetingId, userId, answer) {
   if (!KEEPS_CARD_OPEN.has(answer)) decisions.setStatus(entry.decisionId, 'answered');
   entry.resolve(answer);
   return true;
+}
+
+/**
+ * Called by the bot when the user taps a button on the card. The button names its card;
+ * a card sent before buttons did falls back to the person's newest waiting question for the meeting.
+ */
+function settle(meetingId, userId, answer, decisionId) {
+  const entries = [...pending.entries()].filter(([k]) => k.startsWith(`${userId || 'unknown'}::${meetingId}::`));
+  const [id] = (decisionId ? entries.find(([, e]) => e.decisionId === decisionId) : entries[entries.length - 1]) || [];
+  return id ? settleEntry(id, answer) : false;
 }
 
 /**
@@ -127,9 +139,9 @@ function expire(row) {
  *   'expired'  - the prompt ran out of time first; it counts as a No
  *   'gone'     - no open prompt (already skipped, or never existed)
  */
-function answer({ meetingId, userId, answer: pressed, resume }) {
-  if (settle(meetingId, userId, pressed)) return 'live';
-  const row = decisions.findOpen({ kind: KIND, userId, meetingId });
+function answer({ meetingId, userId, decisionId, answer: pressed, resume }) {
+  if (settle(meetingId, userId, pressed, decisionId)) return 'live';
+  const row = decisionId ? decisions.getOpenById(decisionId, userId) : decisions.findOpen({ kind: KIND, userId, meetingId });
   if (!row) return 'gone';
   if (new Date(row.expires_at).getTime() <= Date.now()) {
     expire(row);
@@ -151,7 +163,7 @@ function answer({ meetingId, userId, answer: pressed, resume }) {
 function sweepExpired() {
   let n = 0;
   for (const row of decisions.openPastExpiry()) {
-    if (pending.has(key(row.payload.meetingId, row.user_id))) continue; // its own timer will handle it
+    if (pending.has(key(row.payload.meetingId, row.user_id, row.payload.transcriptId))) continue; // its own timer will handle it
     expire(row);
     n += 1;
   }

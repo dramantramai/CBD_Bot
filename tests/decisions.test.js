@@ -265,3 +265,62 @@ describe('pressing a button for a brief that exists, through the bot', () => {
     }
   });
 });
+
+describe('a meeting held again while the first session\'s card is still open', () => {
+  const made = (u, meetingId, kind, transcriptId) =>
+    meetingsDb.logMeeting({ meetingId, userId: u, filterResult: 'processed', cbdGenerated: true, outputKind: kind, transcriptIds: [transcriptId] });
+  const ask = (u, meetingId, transcriptId, cards) =>
+    askUser({ meeting: meeting(meetingId), userId: u, kind: undefined, send: (c) => cards.push(c), resumeWith: { transcriptId } });
+  const decisionOf = (card) => card.actions[0].data.decisionId;
+
+  it('sends a new card for the new session, not silence because an earlier card is open', async () => {
+    // The real failure: session one was briefed (its card stays usable), then session two arrived
+    // and the bot decided its question was already on screen.
+    const u = user();
+    const cards = [];
+    const first = ask(u, 'm40', 'T-1', cards);
+    expect(answer({ meetingId: 'm40', userId: u, decisionId: decisionOf(cards[0]), answer: 'client', resume: () => {} })).toBe('live');
+    await first;
+    made(u, 'm40', 'client_brief', 'T-1');
+
+    ask(u, 'm40', 'T-2', cards);
+    expect(cards).toHaveLength(2);
+    expect(decisionOf(cards[1])).not.toBe(decisionOf(cards[0]));
+    expect(rowsOf(u).map((r) => r.status).sort()).toEqual(['open', 'open']);
+    settle('m40', u, 'no', decisionOf(cards[1]));
+  });
+
+  it('still reuses the card for a redelivery of the same session', () => {
+    const u = user();
+    const cards = [];
+    ask(u, 'm41', 'T-1', cards);
+    // the process restarted: a new waiter, the same session
+    const again = [];
+    askUser({ meeting: meeting('m41'), userId: u, kind: undefined, send: (c) => again.push(c), resumeWith: { transcriptId: 'T-1' } });
+    expect(again).toEqual([]);
+    settle('m41', u, 'no', decisionOf(cards[0]));
+  });
+
+  it('answers the card that was pressed: the old session\'s brief exists, the new one\'s does not', async () => {
+    const u = user();
+    const cards = [];
+    ask(u, 'm42', 'T-1', cards);
+    ask(u, 'm42', 'T-2', cards);
+    settle('m42', u, 'meeting', decisionOf(cards[0])); // the first card is answered live and left open
+    made(u, 'm42', 'client_brief', 'T-1');
+    // the first waiter is gone; the second card is still being waited on
+
+    const press = (card, pressed) => answer({ meetingId: 'm42', userId: u, decisionId: decisionOf(card), answer: pressed, resume: () => {} });
+    expect(press(cards[0], 'client')).toBe('already'); // session one already has its client brief
+    expect(press(cards[1], 'client')).toBe('live'); // session two does not, and its own waiter takes the answer
+  });
+
+  it('puts the card\'s id on every button, so a press can never be mistaken for another card\'s', () => {
+    const cards = [];
+    ask(user(), 'm43', 'T-1', cards);
+    const ids = cards[0].actions.map((a) => a.data.decisionId);
+    expect(ids).toHaveLength(3);
+    expect(new Set(ids).size).toBe(1);
+    expect(ids[0]).toMatch(/^[0-9a-f-]{36}$/);
+  });
+});

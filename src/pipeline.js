@@ -111,6 +111,12 @@ async function processOne({
       }));
 
   const kind = kindOf(await confirm({ ...meeting, repeat }, verdict), verdict);
+
+  // Another card for the same session may have been answered while this one waited.
+  if (kind && !again && meetingsDb.priorOutcome(meeting.id, attendeeId, transcriptId)) {
+    await adapters.proactive.sendText(botAdapter, attendeeId, `That one is already covered: **${meeting.subject}** was briefed earlier.`);
+    return { status: 'duplicate', meeting };
+  }
   if (!kind) {
     meetingsDb.logMeeting({
       meetingId: meeting.id,
@@ -370,7 +376,9 @@ const inFlight = new Set();
  * twice and produce two documents.
  */
 async function processMeeting(args) {
-  const key = `${args.userId || ''}::${args.meetingId || args.fixture || args.joinUrl || ''}`;
+  // Per transcript: another session of the same meeting is its own piece of work and must not
+  // be dropped because an earlier session's question is still waiting.
+  const key = `${args.userId || ''}::${args.meetingId || args.fixture || args.joinUrl || ''}::${args.transcriptId || ''}`;
   if (inFlight.has(key)) {
     logger.info({ key }, 'Already being handled; ignoring concurrent notification');
     return { status: 'duplicate' };

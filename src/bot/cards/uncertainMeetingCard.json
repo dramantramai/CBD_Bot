@@ -21,17 +21,17 @@
     {
       "type": "Action.Submit",
       "title": "Client brief",
-      "data": { "action": "confirmMeeting", "answer": "client", "meetingId": "${meetingId}" }
+      "data": { "action": "confirmMeeting", "answer": "client", "meetingId": "${meetingId}", "decisionId": "${decisionId}" }
     },
     {
       "type": "Action.Submit",
       "title": "Meeting brief",
-      "data": { "action": "confirmMeeting", "answer": "meeting", "meetingId": "${meetingId}" }
+      "data": { "action": "confirmMeeting", "answer": "meeting", "meetingId": "${meetingId}", "decisionId": "${decisionId}" }
     },
     {
       "type": "Action.Submit",
       "title": "Skip",
-      "data": { "action": "confirmMeeting", "answer": "no", "meetingId": "${meetingId}" }
+      "data": { "action": "confirmMeeting", "answer": "no", "meetingId": "${meetingId}", "decisionId": "${decisionId}" }
     }
   ]
 }
