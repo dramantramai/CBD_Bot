@@ -19,6 +19,7 @@ let MEETING = {
 // attendees binds graphClient once, when first required, so the stub is installed
 // once here and each test only changes what the profile call answers.
 let me;
+let profiles = {}; // what looking a person up by id answers; empty means the lookup fails
 vi.spyOn(auth, 'getDelegatedToken').mockResolvedValue('token');
 vi.spyOn(clientModule, 'graphClient').mockImplementation(() => ({
   api: (url) => {
@@ -27,6 +28,11 @@ vi.spyOn(clientModule, 'graphClient').mockImplementation(() => ({
       filter: () => chain,
       get: async () => {
         if (url === '/me') return me();
+        if (url.startsWith('/users/')) {
+          const found = profiles[url.split('/')[2]];
+          if (!found) throw new Error('404');
+          return found;
+        }
         if (url.endsWith('/attendanceReports')) throw new Error('not available');
         return MEETING;
       },
@@ -70,5 +76,42 @@ describe('who was invited', () => {
     MEETING = { ...MEETING, participants: { ...MEETING.participants, attendees: [{ upn: 'ananya@verdant.com', role: 'attendee', identity }] } };
     const meeting = await getMeetingDetails({ meetingId: 'meeting-1', userId: 'u' });
     expect(meeting.attendees.map((a) => a.email)).toContain('ananya@verdant.com');
+  });
+});
+
+describe('who the people are', () => {
+  const person = (upn, id) => ({ upn, role: 'attendee', identity: { user: { id, tenantId: 'tenant' } } });
+  const withPeople = (attendees) => {
+    MEETING = { ...MEETING, participants: { organizer: person('dev@dramantram.com', 'org'), attendees } };
+    me = () => ({ displayName: 'Dev', mail: 'dev@dramantram.com' });
+  };
+
+  it('uses the name from the directory, since the meeting carries only an address', async () => {
+    profiles = { a1: { displayName: 'Aditya Joshi', mail: 'aditya.j@dramantram.com' }, org: { displayName: 'Dev Maheshwari', mail: 'dev@dramantram.com' } };
+    withPeople([person('aditya.j@dramantram.com', 'a1')]);
+    const { attendees } = await getMeetingDetails({ meetingId: 'meeting-1', userId: 'u' });
+    expect(attendees.map((a) => a.displayName).sort()).toEqual(['Aditya Joshi', 'Dev Maheshwari']);
+  });
+
+  it('recognises a guest account as outside the company, and gives the guest\'s own address', async () => {
+    profiles = { g1: { displayName: 'Dev Maheshwari', mail: 'devmaheswari2017@gmail.com' } };
+    withPeople([person('devmaheswari2017_gmail.com#EXT#@Dramantram.onmicrosoft.com', 'g1')]);
+    const guest = (await getMeetingDetails({ meetingId: 'meeting-1', userId: 'u' })).attendees.find((a) => a.external);
+    expect(guest).toMatchObject({ displayName: 'Dev Maheshwari', email: 'devmaheswari2017@gmail.com', external: true });
+  });
+
+  it('works the guest\'s address out from the account name when the directory will not say', async () => {
+    profiles = {};
+    withPeople([person('priya_verdant.in#EXT#@Dramantram.onmicrosoft.com', 'g2')]);
+    const guest = (await getMeetingDetails({ meetingId: 'meeting-1', userId: 'u' })).attendees.find((a) => a.external);
+    expect(guest.email).toBe('priya@verdant.in');
+  });
+
+  it('falls back to the address when a name cannot be looked up, and still knows who is internal', async () => {
+    profiles = {};
+    withPeople([person('shlok.k@dramantram.com', 's1')]);
+    const { attendees } = await getMeetingDetails({ meetingId: 'meeting-1', userId: 'u' });
+    expect(attendees.find((a) => a.email === 'shlok.k@dramantram.com')).toMatchObject({ displayName: 'shlok.k@dramantram.com' });
+    expect(attendees.some((a) => a.external)).toBe(false);
   });
 });

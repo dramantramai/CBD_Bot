@@ -26,7 +26,7 @@
     },
     "spoc": {
       "type": "string",
-      "description": "Client-side day-to-day point of contact, with their role if stated. Empty string if never named."
+      "description": "Client-side day-to-day point of contact, with their role if stated. Prefer a person marked [client side] in the attendee list. Empty string if never named."
     },
     "escalationPoint": {
       "type": "string",

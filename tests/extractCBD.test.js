@@ -67,6 +67,48 @@ describe('extractCBD fallback chain', () => {
   });
 });
 
+describe('the client contact from who was in the meeting', () => {
+  const meetingWith = (...people) => ({ attendees: [{ displayName: 'Dev', email: 'dev@dramantram.com' }, ...people] });
+  const client = { displayName: 'Ananya Rao', email: 'ananya@verdant.in' };
+  const guest = { displayName: 'Kabir Shah', email: 'kabir@gmail.com', external: true };
+
+  it('is the one person from outside Dramantram, when the transcript named nobody', () => {
+    const r = normalize({ confidence: {} }, { meeting: meetingWith(client) });
+    expect(r.spoc).toBe('Ananya Rao (ananya@verdant.in)');
+    expect(r.confidence.spoc).toBe(4);
+    expect(r.needsConfirmation).not.toContain('spoc');
+  });
+
+  it('does not say an address twice when that is all the directory knows about the guest', () => {
+    const bare = { displayName: 'kabir@gmail.com', email: 'kabir@gmail.com', external: true };
+    expect(normalize({ confidence: {} }, { meeting: meetingWith(bare) }).spoc).toBe('kabir@gmail.com');
+  });
+
+  it('counts a guest account as outside the company', () => {
+    expect(normalize({ confidence: {} }, { meeting: meetingWith(guest) }).spoc).toContain('Kabir Shah');
+  });
+
+  it('keeps a contact the transcript named with any confidence', () => {
+    const r = normalize({ spoc: 'Priya Nair, marketing head', confidence: { spoc: 4 } }, { meeting: meetingWith(client) });
+    expect(r.spoc).toBe('Priya Nair, marketing head');
+  });
+
+  it('replaces a weak guess with the one outsider who was there', () => {
+    const r = normalize({ spoc: 'someone from marketing', confidence: { spoc: 2 } }, { meeting: meetingWith(client) });
+    expect(r.spoc).toContain('Ananya Rao');
+  });
+
+  it('leaves it to the transcript, and to be confirmed, when several outsiders were there', () => {
+    const r = normalize({ confidence: {} }, { meeting: meetingWith(client, guest) });
+    expect(r.spoc).toBe('');
+    expect(r.needsConfirmation).toContain('spoc');
+  });
+
+  it('leaves it to be confirmed when everyone was from Dramantram', () => {
+    expect(normalize({ confidence: {} }, { meeting: meetingWith() }).spoc).toBe('');
+  });
+});
+
 describe('normalize', () => {
   it('empties a placeholder the model wrote instead of leaving the field blank, and flags it', () => {
     const r = normalize({ spoc: 'Unknown', escalationPoint: 'Not stated.', confidence: { spoc: 5, escalationPoint: 5 } });

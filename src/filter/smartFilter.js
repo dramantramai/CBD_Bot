@@ -21,6 +21,9 @@ function isExternal(email, tenantDomain) {
   return !String(email).toLowerCase().endsWith('@' + tenantDomain.toLowerCase());
 }
 
+/** An attendee from outside Dramantram: an address outside the tenant domain, or a guest account in it. */
+const isOutsider = (attendee, tenantDomain = env.TENANT_DOMAIN) => Boolean(attendee.external) || isExternal(attendee.email, tenantDomain);
+
 function getDurationMinutes(startDateTime, endDateTime) {
   const start = new Date(startDateTime).getTime();
   const end = new Date(endDateTime).getTime();
@@ -50,8 +53,8 @@ function shouldProcessMeeting(meeting, options = {}) {
     attendeeCount: attendees.length,
   };
 
-  const externals = attendees.filter((a) => isExternal(a.email, tenantDomain));
-  const unresolved = attendees.filter((a) => !a.email);
+  const externals = attendees.filter((a) => isOutsider(a, tenantDomain));
+  const unresolved = attendees.filter((a) => !a.email && !a.external);
 
   // Too short to be worth a brief, whatever kind of meeting it was.
   if (durationMinutes < minMinutes) {
@@ -66,7 +69,7 @@ function shouldProcessMeeting(meeting, options = {}) {
       decision: DECISION.UNCERTAIN,
       reason: REASON.EXTERNAL_AND_LONG,
       externalDomains: [
-        ...new Set(externals.map((a) => a.email.split('@')[1].toLowerCase())),
+        ...new Set(externals.filter((a) => a.email).map((a) => a.email.split('@')[1].toLowerCase())),
       ],
     };
   }
@@ -95,6 +98,7 @@ function shouldProcessMeeting(meeting, options = {}) {
 module.exports = {
   shouldProcessMeeting,
   isExternal,
+  isOutsider,
   getDurationMinutes,
   DECISION,
   REASON,

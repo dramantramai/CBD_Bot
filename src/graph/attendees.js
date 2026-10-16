@@ -14,6 +14,34 @@ const emailOf = (participant) => {
 const nameOf = (participant) =>
   (participant.identity && participant.identity.user && participant.identity.user.displayName) || participant.upn || 'Unknown';
 
+// A guest account's address is its real one with "@" turned into "_" and a tenant suffix:
+// "dev_gmail.com#EXT#@tenant.onmicrosoft.com" is dev@gmail.com.
+const isGuest = (participant) => /#EXT#/i.test(participant.upn || '');
+const guestAddress = (upn) => {
+  const local = String(upn).split(/#EXT#/i)[0];
+  const at = local.lastIndexOf('_');
+  return at > 0 ? `${local.slice(0, at)}@${local.slice(at + 1)}` : null;
+};
+
+/**
+ * One invited person, with the name and address people use. The meeting object carries only an
+ * id and an address, so the name is looked up; if that fails, what the object has is used.
+ */
+async function describePerson(client, participant, role) {
+  const guest = isGuest(participant);
+  const userId = participant.identity && participant.identity.user && participant.identity.user.id;
+  let profile = {};
+  if (userId) {
+    try {
+      profile = await client.api(`/users/${userId}`).select('displayName,mail').get();
+    } catch (err) {
+      logger.warn({ err: err.message }, 'Could not look up an attendee\'s name');
+    }
+  }
+  const email = guest ? profile.mail || guestAddress(participant.upn) || participant.upn : participant.upn || profile.mail || null;
+  return { displayName: profile.displayName || nameOf(participant), email, role, ...(guest ? { external: true } : {}) };
+}
+
 /**
  * The Dramantram person the CBD is for: whoever the bot is acting for, who is
  * the organiser of any meeting it was notified about. Their own profile is
@@ -56,24 +84,14 @@ async function getMeetingDetails({ meetingId, userId, joinUrl }) {
   if (!meeting) throw new Error(`Meeting not found: ${meetingId || joinUrl}`);
 
   const attendees = new Map();
-  for (const p of (meeting.participants && meeting.participants.attendees) || []) {
-    const email = emailOf(p);
-    attendees.set(email || `anon-${attendees.size}`, {
-      displayName: nameOf(p),
-      email,
-      role: 'attendee',
-    });
-  }
-
+  const invited = (meeting.participants && meeting.participants.attendees) || [];
   const organizer = meeting.participants && meeting.participants.organizer;
+  const people = await Promise.all([
+    ...invited.map((p) => describePerson(client, p, 'attendee')),
+    ...(emailOf(organizer) ? [describePerson(client, organizer, 'organizer')] : []),
+  ]);
+  for (const person of people) attendees.set(person.email || `anon-${attendees.size}`, person);
   const organizerEmail = emailOf(organizer);
-  if (organizerEmail) {
-    attendees.set(organizerEmail, {
-      displayName: nameOf(organizer),
-      email: organizerEmail,
-      role: 'organizer',
-    });
-  }
 
   // Dial-in participants have no email, which is what drives the "uncertain"
   // branch of the filter, so they must survive into the list.

@@ -1,4 +1,5 @@
 const { env } = require('../config/env');
+const { isOutsider } = require('../filter/smartFilter');
 const logger = require('../utils/logger');
 const schema = require('./schema.json');
 const checkboxMap = require('../docgen/checkboxMap.json');
@@ -107,6 +108,17 @@ function normalize(raw, { meeting } = {}) {
   }
 
   for (const field of blanked) out.confidence[field] = 1; // said "unknown": flag it, not a real answer
+
+  // The one person from outside Dramantram in the meeting is the client's contact, unless the
+  // transcript named someone else with any confidence.
+  const outsiders = ((meeting && meeting.attendees) || []).filter((a) => isOutsider(a));
+  if (outsiders.length === 1 && (!out.spoc || out.confidence.spoc < 3)) {
+    const [client] = outsiders;
+    // A guest invited by email has that address as their name: say it once.
+    const named = client.displayName && client.displayName !== client.email;
+    out.spoc = named && client.email ? `${client.displayName} (${client.email})` : client.email || client.displayName;
+    out.confidence.spoc = 4;
+  }
 
   // Apply the blueprint's documented fallbacks for anything left blank.
   for (const [field, fallback] of Object.entries(FALLBACKS)) {

@@ -1,3 +1,4 @@
+const { isOutsider } = require('../filter/smartFilter');
 const schema = require('./schema.json');
 
 /**
@@ -62,7 +63,7 @@ Rules:
 function buildPrompt({ transcript, meeting }) {
   const owner = (meeting && meeting.dramantramUser) || {};
   const attendees = ((meeting && meeting.attendees) || [])
-    .map((a) => `- ${a.displayName}${a.email ? ` <${a.email}>` : ' (dial-in)'}`)
+    .map((a) => `- ${a.displayName}${a.email ? ` <${a.email}>` : ' (dial-in)'}${isOutsider(a) ? ' [client side]' : ''}`)
     .join('\n');
 
   const user = `MEETING METADATA
@@ -71,6 +72,10 @@ Date: ${meeting?.startDateTime || 'Unknown'}
 Hosted by: ${meeting?.hostedBy === 'external' ? 'the client' : 'Dramantram'}
 Attendees:
 ${attendees || '- unknown'}
+
+People marked [client side] are from outside Dramantram. The SPOC is the client-side day-to-day
+contact: if exactly one person is marked [client side], that is the SPOC unless the transcript
+names someone else; if several are, pick the one who speaks for the client, or leave it empty.
 
 The Dramantram project owner is ${owner.displayName || 'not available (leave the projectOwner fields empty)'}${
     owner.email ? ` (${owner.email}${owner.phone ? `, ${owner.phone}` : ''})` : ''
