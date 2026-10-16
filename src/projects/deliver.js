@@ -11,6 +11,25 @@ const fakeChat = require('./fakeChat');
 const unique = (list) => [...new Set(list.filter(Boolean))];
 const isInternal = (email) => String(email || '').toLowerCase().endsWith(`@${env.TENANT_DOMAIN.toLowerCase()}`);
 const say = (e) => (e && e.message) || String(e);
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+
+// Teams installs the bot into a new chat in the background, so for a little while after the
+// chat is created the bot is not on its member list and posting is refused with this error.
+const NOT_YET_IN_CHAT = /roster|not part of the conversation/i;
+const INSTALL_WAITS_MS = [4000, 6000, 8000, 10000, 12000, 15000]; // about a minute in all
+
+/** Posts, and for a chat created a moment ago keeps trying while the bot finishes being installed. */
+async function postWhenInstalled(send, { justCreated, wait }) {
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await send();
+    } catch (err) {
+      if (!justCreated || !NOT_YET_IN_CHAT.test(say(err)) || attempt >= INSTALL_WAITS_MS.length) throw err;
+      logger.info({ attempt: attempt + 1 }, 'The bot is not in the new chat yet; waiting');
+      await wait(INSTALL_WAITS_MS[attempt]);
+    }
+  }
+}
 
 /**
  * Puts a finished client brief where the project lives: saves it as the next
@@ -32,6 +51,7 @@ async function deliverToProject({ project, filePath, summary, meeting, attendeeI
   const chat = deps.chat || (env.MOCK_MODE ? fakeChat : realChat);
   const tokenFor = deps.tokenFor || ((userId) => adapters.auth.getDelegatedToken(userId));
   const proactive = deps.proactive || adapters.proactive;
+  const wait = deps.sleep || sleep;
 
   const notes = [];
   const organiser = meeting.dramantramUser || { id: attendeeId };
@@ -72,6 +92,7 @@ async function deliverToProject({ project, filePath, summary, meeting, attendeeI
 
   // 2. The project's chat: create it with the organiser's own sign-in if it does not exist yet.
   let chatId = current.chat_id;
+  let justCreated = false;
   if (!chatId) {
     try {
       const token = await tokenFor(attendeeId);
@@ -90,6 +111,7 @@ async function deliverToProject({ project, filePath, summary, meeting, attendeeI
       } else {
         chatId = await chat.createChat(token, { topic: projectsDb.projectLabel(project), memberIds, appCatalogId: env.TEAMS_CATALOG_APP_ID });
         current = projectsDb.setLocation(project.id, { chatId });
+        justCreated = true;
       }
     } catch (err) {
       notes.push(`I could not create the project chat (${say(err)}).`);
@@ -123,7 +145,7 @@ async function deliverToProject({ project, filePath, summary, meeting, attendeeI
   let posted = false;
   if (chatId) {
     try {
-      await proactive.sendToChat(botAdapter, attendeeId, chatId, { text: message });
+      await postWhenInstalled(() => proactive.sendToChat(botAdapter, attendeeId, chatId, { text: message }), { justCreated, wait });
       posted = true;
     } catch (err) {
       notes.push(`I could not post in the project chat (${say(err)}).`);

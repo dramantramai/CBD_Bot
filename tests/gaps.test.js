@@ -132,6 +132,11 @@ describe('wording shown to people', () => {
     const [f] = fieldRules(goodCbd({ escalationPoint: '', confidence: { ...goodCbd().confidence, escalationPoint: 1 } }));
     expect(f.evidence).toBe('Escalation point');
   });
+
+  it('keeps an acronym in capitals', () => {
+    const [f] = fieldRules(goodCbd({ spoc: '', confidence: { ...goodCbd().confidence, spoc: 1 } }));
+    expect(f.evidence).toBe('SPOC');
+  });
 });
 
 describe('method C: forced assumptions must name a real field', () => {

@@ -53,6 +53,10 @@ const chat = {
 const proactive = {
   async sendToChat(_a, _u, chatId, activity) {
     log.push(['post', chatId, activity.text]);
+    if (fail.rosterTimes > 0) {
+      fail.rosterTimes -= 1;
+      throw new Error('The bot is not part of the conversation roster.');
+    }
     if (fail.post) throw new Error('bot not in chat');
   },
   async sendText(_a, userId, text) { log.push(['personal', userId, text]); },
@@ -154,6 +158,45 @@ describe('a later client brief', () => {
     expect(kinds('save').map((e) => e[1])).toEqual(['u-dev', 'u-new']);
     expect(getVersions(project.id).at(-1).file_owner).toBe('u-new');
     expect(out.notes.join(' ')).toMatch(/sign-in has expired.*own OneDrive/);
+  });
+});
+
+describe('a chat that was only just created', () => {
+  const waits = [];
+  const withSleep = () => ({ deps: { ...deps(), sleep: async (ms) => { waits.push(ms); } } });
+  beforeEach(() => { waits.length = 0; });
+
+  it('waits and tries again while the bot is still being installed, then posts without any complaint', async () => {
+    fail.rosterTimes = 2;
+    const out = await run(project, withSleep());
+    expect(out).toMatchObject({ delivered: 'chat', notes: [] });
+    expect(waits).toEqual([4000, 6000]);
+    expect(kinds('post')).toHaveLength(3);
+  });
+
+  it('gives up after about a minute and sends the organiser the link instead', async () => {
+    fail.rosterTimes = 99;
+    const out = await run(project, withSleep());
+    expect(out.delivered).toBe('personal');
+    expect(waits).toEqual([4000, 6000, 8000, 10000, 12000, 15000]);
+    expect(out.notes.join(' ')).toMatch(/could not post in the project chat/);
+    expect(kinds('personal')[0][2]).toContain('VerdantKitchens_Video_v1.docx');
+  });
+
+  it('does not wait over any other kind of failure', async () => {
+    fail.post = true;
+    await run(project, withSleep());
+    expect(waits).toEqual([]);
+  });
+
+  it('does not wait for a chat that has existed for a while: the bot is in it already', async () => {
+    await run(project, withSleep());
+    log = [];
+    waits.length = 0;
+    fail.rosterTimes = 1;
+    const out = await run(getProject(project.id), withSleep());
+    expect(waits).toEqual([]);
+    expect(out.delivered).toBe('personal');
   });
 });
 

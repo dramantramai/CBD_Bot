@@ -34,7 +34,9 @@ const CONCRETE_DATE = new RegExp(
 const NUMBER_WORD = /\b(?:one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve|dozen|hundred|thousand)\b/i;
 
 // "escalationPoint" -> "Escalation point", for text a person reads.
+const ACRONYMS = { spoc: 'SPOC' };
 const label = (field) => {
+  if (ACRONYMS[field]) return ACRONYMS[field];
   const t = field.replace(/([a-z])([A-Z])/g, '$1 $2').toLowerCase();
   return t.charAt(0).toUpperCase() + t.slice(1);
 };
