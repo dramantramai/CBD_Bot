@@ -23,6 +23,7 @@ const { env } = require('../config/env');
 const { answer } = require('../filter/uncertainPrompt');
 const { answerProject } = require('../projects/projectPrompt');
 const baseline = require('../projects/baseline');
+const { searchProjects, titleOf } = require('../projects/search');
 const confirmMerge = require('../projects/confirmMerge');
 const adapters = require('../config/adapters');
 const { listRecent, briefFiles } = require('../db/meetings');
@@ -433,6 +434,12 @@ class CbdBot extends TeamsActivityHandler {
   // the interactive OAuthCard popup) - the base SDK has no handler for it and
   // 501s, silently discarding the failure code/message we need to diagnose it.
   async onInvokeActivity(context) {
+    // The project card's search box: as someone types, Teams asks for matching projects.
+    if (context.activity.name === 'application/search') {
+      const { queryText, dataset } = context.activity.value || {};
+      const results = dataset === 'projects' ? searchProjects(queryText).map((p) => ({ title: titleOf(p), value: p.id })) : [];
+      return { status: 200, body: { type: 'application/vnd.microsoft.search.searchResponse', value: { results } } };
+    }
     if (context.activity.name === 'signin/failure') {
       logger.error({ value: context.activity.value }, 'Teams SSO signin/failure');
       return { status: 200 };

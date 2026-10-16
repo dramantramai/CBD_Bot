@@ -36,7 +36,7 @@ function render(template, data = {}) {
  * existing projects, and two boxes for a new one. Built in code, not from a
  * template, because the list and the optional suggestion change every time.
  */
-function buildProjectCard({ meetingId, title, suggestion, projects }) {
+function buildProjectCard({ meetingId, title, suggestion, projects, total = projects.length }) {
   const data = (mode, extra = {}) => ({ action: 'chooseProject', meetingId, mode, ...extra });
   const body = [
     { type: 'TextBlock', text: 'Which project is this for?', weight: 'Bolder', size: 'Medium' },
@@ -48,12 +48,15 @@ function buildProjectCard({ meetingId, title, suggestion, projects }) {
     actions.push({ type: 'Action.Submit', title: 'Yes, that one', data: data('suggested') });
   }
   if (projects.length) {
+    // A search box, not a long list: the card carries only the most recent few, and typing asks the bot
+    // for matches among all of them (a card with hundreds of entries would also be too large for Teams).
     body.push({
       type: 'Input.ChoiceSet',
       id: 'projectId',
-      style: 'compact',
-      placeholder: 'Or pick another project',
+      style: 'filtered',
+      placeholder: total > projects.length ? `Search ${total} projects, or pick a recent one` : 'Or pick another project',
       choices: projects.map((p) => ({ title: `${p.client_name} - ${p.project_name}`, value: p.id })),
+      'choices.data': { type: 'Data.Query', dataset: 'projects' },
     });
     actions.push({ type: 'Action.Submit', title: 'Use the selected project', data: data('existing') });
   }
@@ -63,7 +66,7 @@ function buildProjectCard({ meetingId, title, suggestion, projects }) {
     { type: 'Input.Text', id: 'projectName', placeholder: 'Project name' }
   );
   actions.push({ type: 'Action.Submit', title: 'Create new project', data: data('new') });
-  return { type: 'AdaptiveCard', $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', version: '1.4', body, actions };
+  return { type: 'AdaptiveCard', $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', version: '1.5', body, actions };
 }
 
 /** Which file does the new version build on? One question, three answers. */

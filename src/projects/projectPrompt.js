@@ -7,6 +7,7 @@ const pending = new Map();
 const key = (meetingId, userId) => `${userId}::${meetingId}`;
 
 const PROMPT_MINUTES = 30;
+const RECENT_SHOWN = 20; // the rest are found by typing in the search box
 
 /**
  * Asks which project a client brief belongs to and waits for the answer.
@@ -29,7 +30,8 @@ function askProject({ meeting, userId, send, suggestion, timeoutMs }) {
   if (timer.unref) timer.unref();
 
   pending.set(id, { promise, resolve, timer, suggestionId: suggestion && suggestion.project.id });
-  send(buildProjectCard({ meetingId: meeting.id, title: meeting.subject, suggestion, projects: listProjects().filter((p) => !p.cleared_at) }));
+  const all = listProjects().filter((p) => !p.cleared_at);
+  send(buildProjectCard({ meetingId: meeting.id, title: meeting.subject, suggestion, projects: all.slice(0, RECENT_SHOWN), total: all.length }));
   return promise;
 }
 
