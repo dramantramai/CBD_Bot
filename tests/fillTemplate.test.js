@@ -184,3 +184,14 @@ describe('fillTemplate', () => {
     expect((second.xml.match(/☒/g) || [])).toHaveLength(0);
   });
 });
+
+describe('the generated file name', () => {
+  it('is different every time, even for the same project in the same second', () => {
+    const { fillTemplate: fill } = require('../src/docgen/fillTemplate');
+    const out = require('os').tmpdir();
+    const a = fill({ projectName: 'Same Project', confidence: {} }, { outputDir: out });
+    const b = fill({ projectName: 'Same Project', confidence: {} }, { outputDir: out });
+    expect(a).not.toBe(b);
+    expect(require('path').basename(a)).toMatch(/^CBD_Same_Project_\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}_[0-9a-f]{6}\.docx$/);
+  });
+});

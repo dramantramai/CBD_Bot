@@ -1,3 +1,4 @@
+const fs = require('fs');
 const path = require('path');
 const { randomUUID } = require('crypto');
 const { env } = require('./config/env');
@@ -15,6 +16,10 @@ const meetingsDb = require('./db/meetings');
 const { suggestProject, clientNotMentioned } = require('./projects/suggest');
 const { askProject } = require('./projects/projectPrompt');
 const { deliverToProject } = require('./projects/deliver');
+const { chooseBaseline } = require('./projects/baseline');
+const { mergeCbd, MergeUnavailableError } = require('./projects/merge');
+const confirmMerge = require('./projects/confirmMerge');
+const { addChangesBlock } = require('./docgen/changesBlock');
 const { applyReplay } = require('./replay');
 
 // Gemini's context window swallows a 3-hour meeting whole, but the weaker
@@ -50,6 +55,9 @@ async function processOne({
   botAdapter = null,
   onConfirm,
   onChooseProject,
+  onChooseBaseline,
+  onConfirmMerge,
+  mergeCompare,
   replay,
   again = false,
 }) {
@@ -166,7 +174,15 @@ async function processOne({
   transcript.transcriptIds = [...new Set([...(transcript.transcriptIds || []), ...notified])];
 
   const deliver = kind === 'meeting' ? generateBriefAndDeliver : generateAndDeliver;
-  return deliver({ transcript, meeting, attendeeId, botAdapter, verdict, choose: onChooseProject });
+  return deliver({
+    transcript,
+    meeting,
+    attendeeId,
+    botAdapter,
+    verdict,
+    choose: onChooseProject,
+    hooks: { chooseBaseline: onChooseBaseline, confirmMerge: onConfirmMerge, compare: mergeCompare },
+  });
 }
 
 /**
@@ -230,24 +246,94 @@ async function chooseProjectFor({ transcript, meeting, attendeeId, botAdapter, c
   return project;
 }
 
-async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter, verdict, choose }) {
+/**
+ * For a project that already has a version: which file does the new one build on? Offline there is nobody
+ * to ask, so a test passes `chooseBaseline`; otherwise the new version is built from the meeting alone.
+ */
+async function chooseBaselineFor({ project, meeting, attendeeId, botAdapter, hook }) {
+  if (hook) return hook({ project, meeting });
+  if (env.MOCK_MODE) return { mode: 'fresh' };
+  return chooseBaseline({
+    project,
+    meeting,
+    attendeeId,
+    send: (card) => adapters.proactive.sendCard(botAdapter, attendeeId, card),
+    sendText: (t) => adapters.proactive.sendText(botAdapter, attendeeId, t),
+  });
+}
+
+/** One tap approves a merge. Offline it is approved, so a run needs nobody to press anything. */
+async function confirmMergeFor({ merge, meeting, attendeeId, botAdapter, version, baselineVersion, warning, hook }) {
+  if (hook) return hook({ merge, meeting, version, baselineVersion });
+  if (env.MOCK_MODE) return 'yes';
+  return confirmMerge.ask({
+    meeting,
+    userId: attendeeId,
+    merge,
+    version,
+    baselineVersion,
+    warning,
+    send: (card) => adapters.proactive.sendCard(botAdapter, attendeeId, card),
+  });
+}
+
+async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter, verdict, choose, hooks = {} }) {
   const project = await chooseProjectFor({ transcript, meeting, attendeeId, botAdapter, choose });
+  const personal = (t) => adapters.proactive.sendText(botAdapter, attendeeId, t);
+
+  // A project that already has a version: say which file the new one builds on, before any model is used.
+  let baseline = { mode: 'fresh' };
+  if (project && project.current_version >= 1) {
+    baseline = await chooseBaselineFor({ project, meeting, attendeeId, botAdapter, hook: hooks.chooseBaseline });
+    if (baseline.mode === 'cancelled') {
+      await personal(`I did not hear which file to build on, so I did not make v${project.current_version + 1}. Nothing was changed.`);
+      return { status: 'cancelled', kind: 'client', verdict, meeting, project };
+    }
+    if (baseline.warning) await personal(baseline.warning);
+  }
+
   const text = trimTranscript(transcript.text);
-  const cbd = await extractCBD({ transcript: text, meeting });
+  const fresh = await extractCBD({ transcript: text, meeting });
+  let cbd = fresh;
 
   // Outside mock mode, falling back to the offline extractor means every real
   // provider was exhausted or down. The document still gets written - a rough
   // draft beats nothing - but it must not look like a normal one, or a
   // low-quality brief quietly goes to a client.
-  const degraded = cbd._provider === 'mock' && !env.MOCK_MODE;
+  const degraded = fresh._provider === 'mock' && !env.MOCK_MODE;
   if (degraded) {
     logger.error(
-      { meetingId: meeting.id, errors: cbd._providerErrors },
+      { meetingId: meeting.id, errors: fresh._providerErrors },
       'DEGRADED: every LLM provider failed; brief drafted by the offline extractor'
     );
   }
 
+  // Built on an earlier version: compare, merge, and let the organiser approve before anything is made.
+  let merged = null;
+  if (baseline.mode === 'use') {
+    const next = project.current_version + 1;
+    try {
+      if (degraded) throw new MergeUnavailableError('every language model was unavailable, so I only have a rough reading of this meeting');
+      merged = await mergeCbd({ base: baseline, fresh, transcript: text, meeting, deps: hooks.compare ? { compare: hooks.compare } : {} });
+    } catch (err) {
+      if (!(err instanceof MergeUnavailableError)) throw err;
+      logger.error({ projectId: project.id, err: err.message }, 'A new version could not be merged');
+      await personal(`I could not build v${next} on top of v${baseline.version}: ${err.message}. Nothing was made; I never produce a degraded merge. Try again later, or choose Start fresh to build it from this meeting alone.`);
+      return { status: 'failed', kind: 'client', verdict, meeting, project };
+    }
+    const choice = await confirmMergeFor({ merge: merged, meeting, attendeeId, botAdapter, version: next, baselineVersion: baseline.version, warning: baseline.warning, hook: hooks.confirmMerge });
+    if (choice !== 'yes') {
+      await personal(choice === 'timeout' ? `I did not hear back, so I did not make v${next}.` : `Cancelled: v${next} was not made.`);
+      return { status: 'cancelled', kind: 'client', verdict, meeting, project };
+    }
+    cbd = merged.cbd;
+  }
+
   const filePath = fillTemplate(cbd, { outputDir: env.OUTPUT_DIR });
+  if (merged) {
+    const info = { sinceVersion: baseline.version, meeting: meeting.subject, date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'Asia/Kolkata' }), ...merged };
+    fs.writeFileSync(filePath, addChangesBlock(fs.readFileSync(filePath), info));
+  }
 
   meetingsDb.logMeeting({
     meetingId: meeting.id,
@@ -264,8 +350,6 @@ async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter,
     projectId: project && project.id,
   });
 
-  const personal = (t) => adapters.proactive.sendText(botAdapter, attendeeId, t);
-
   // A client brief for a project lives with the project: saved as its next
   // version and posted in its chat. Only if it cannot be saved does the file
   // come to the organiser directly, as it always did.
@@ -273,11 +357,20 @@ async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter,
     const summary = [
       degraded ? '**Automatic extraction was unavailable, so this draft came from the basic fallback and needs a full manual review.**' : '',
       `Meeting: ${meeting.subject}`,
+      merged ? `Built on v${baseline.version}: ${merged.changes.length} changed, ${merged.added.length} new, the rest carried over unchanged. See "Changes since v${baseline.version}" at the top of the file.` : '',
       `Confidence ${cbd.confidenceAvg} / 5, ${cbd.needsConfirmation.length} field(s) tagged [NEEDS CONFIRMATION] in the document. Please review before sending to the client.`,
     ]
       .filter(Boolean)
       .join('\n\n');
-    const delivery = await deliverToProject({ project, filePath, summary, meeting, attendeeId, botAdapter });
+    const delivery = await deliverToProject({
+      project,
+      filePath,
+      summary,
+      meeting,
+      attendeeId,
+      botAdapter,
+      changeSummary: merged ? `${merged.changes.length} changed, ${merged.added.length} new; built on v${baseline.version}` : undefined,
+    });
     if (delivery.notes.length) await personal(delivery.notes.join(' '));
 
     if (delivery.delivered) {
@@ -403,7 +496,7 @@ async function processMeeting(args) {
  * Nothing here is inferred about attendees or duration, so the filter is
  * skipped entirely: asking for a brief IS the decision the filter would make.
  */
-async function briefFromText({ text, timedText, title, userId, botAdapter, source = 'manual', kind = 'client', onChooseProject }) {
+async function briefFromText({ text, timedText, title, userId, botAdapter, source = 'manual', kind = 'client', onChooseProject, onChooseBaseline, onConfirmMerge, mergeCompare }) {
   if (!text || !text.trim()) throw new Error('No transcript text supplied');
 
   const meeting = {
@@ -428,6 +521,7 @@ async function briefFromText({ text, timedText, title, userId, botAdapter, sourc
     botAdapter,
     verdict: { decision: 'process', kind, reason: 'supplied_by_user' },
     choose: onChooseProject,
+    hooks: { chooseBaseline: onChooseBaseline, confirmMerge: onConfirmMerge, compare: mergeCompare },
   });
 }
 

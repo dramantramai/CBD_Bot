@@ -22,6 +22,8 @@ const { saveReference } = require('../db/conversations');
 const { env } = require('../config/env');
 const { answer } = require('../filter/uncertainPrompt');
 const { answerProject } = require('../projects/projectPrompt');
+const baseline = require('../projects/baseline');
+const confirmMerge = require('../projects/confirmMerge');
 const adapters = require('../config/adapters');
 const { listRecent, briefFiles } = require('../db/meetings');
 const { fileConsentAttachment } = require('./proactive');
@@ -108,6 +110,24 @@ class CbdBot extends TeamsActivityHandler {
 
     if (!url) {
       await context.sendActivity("I couldn't read that file - Teams sent no download link.");
+      return;
+    }
+
+    // The previous version of a CBD, sent because the bot asked for it (it is waiting on a baseline).
+    if (baseline.isWaitingForUpload(userId)) {
+      if (!/\.docx$/i.test(name)) {
+        await context.sendActivity(`I am waiting for the previous version as a **.docx**, and **${name}** is not one. Send the Word file, or answer the question above with Start fresh.`);
+        return;
+      }
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`download returned HTTP ${res.status}`);
+        baseline.receiveUpload(userId, { name, buffer: Buffer.from(await res.arrayBuffer()) });
+        await context.sendActivity(`Got **${name}**. Reading it...`);
+      } catch (err) {
+        logger.error({ err: err.message, name }, 'Reading an uploaded baseline failed');
+        await context.sendActivity(`I couldn't read **${name}**: ${err.message}. Try sending it again.`);
+      }
       return;
     }
 
@@ -213,6 +233,26 @@ class CbdBot extends TeamsActivityHandler {
 
     if (value.action === 'chooseOutput') {
       await this.handleChooseOutput(context, value);
+      return;
+    }
+
+    if (value.action === 'chooseBaseline') {
+      const ok = baseline.answer({ meetingId: value.meetingId, userId, choice: value.choice });
+      await context.sendActivity(
+        !ok
+          ? 'I am no longer waiting on that question.'
+          : value.choice === 'use'
+            ? 'Building on that file...'
+            : value.choice === 'upload'
+              ? 'Okay, send the file.'
+              : 'Starting fresh from this meeting alone...'
+      );
+      return;
+    }
+
+    if (value.action === 'confirmMerge') {
+      const ok = confirmMerge.answer({ meetingId: value.meetingId, userId, choice: value.choice });
+      await context.sendActivity(!ok ? 'I am no longer waiting on that question.' : value.choice === 'yes' ? 'Generating the new version...' : 'Cancelled: no new version was made.');
       return;
     }
 

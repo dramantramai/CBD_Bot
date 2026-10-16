@@ -46,7 +46,7 @@ async function postWhenInstalled(send, { justCreated, wait }) {
  * who is not in the chat still gets a saved version and the link. If the
  * owner's sign-in has expired, the version goes to the organiser's own drive.
  */
-async function deliverToProject({ project, filePath, summary, meeting, attendeeId, botAdapter, deps = {} }) {
+async function deliverToProject({ project, filePath, summary, changeSummary, meeting, attendeeId, botAdapter, deps = {} }) {
   const storage = deps.storage || getStorage();
   const chat = deps.chat || (env.MOCK_MODE ? fakeChat : realChat);
   const tokenFor = deps.tokenFor || ((userId) => adapters.auth.getDelegatedToken(userId));
@@ -85,6 +85,7 @@ async function deliverToProject({ project, filePath, summary, meeting, attendeeI
     fileRef: saved.ref,
     fileOwner: savedBy,
     uploadedEtag: saved.etag,
+    changeSummary,
     sourceMeetingId: meeting.id,
     createdBy: attendeeId,
   });

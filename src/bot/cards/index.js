@@ -86,7 +86,29 @@ function buildBaselineCard({ meetingId, title, question, canUse }) {
   };
 }
 
+/** The confirmation before a new version: one tap approves it. */
+function buildMergeCard({ meetingId, title, sections, nothing, version }) {
+  const body = [{ type: 'TextBlock', text: title, weight: 'Bolder', size: 'Medium', wrap: true }];
+  for (const { heading, lines } of sections) {
+    body.push({ type: 'TextBlock', text: heading, weight: 'Bolder', size: 'Small', spacing: 'Medium' });
+    for (const line of lines) body.push({ type: 'TextBlock', text: line, wrap: true, spacing: 'Small' });
+  }
+  if (nothing) body.push({ type: 'TextBlock', text: 'Nothing in the document changes: the meeting did not alter or add anything.', wrap: true, isSubtle: true });
+  const data = (choice) => ({ action: 'confirmMerge', meetingId, choice });
+  return {
+    type: 'AdaptiveCard',
+    $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+    version: '1.4',
+    body,
+    actions: [
+      { type: 'Action.Submit', title: nothing ? `Make v${version} anyway` : `Looks right - generate v${version}`, data: data('yes') },
+      { type: 'Action.Submit', title: 'Cancel', data: data('cancel') },
+    ],
+  };
+}
+
 module.exports = {
+  buildMergeCard,
   buildBaselineCard,
   buildProjectCard,
   render,

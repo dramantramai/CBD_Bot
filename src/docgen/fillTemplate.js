@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const PizZip = require('pizzip');
@@ -261,10 +262,11 @@ function fillTemplate(cbd, options = {}) {
     options.outputPath ||
     path.join(
       options.outputDir || env.OUTPUT_DIR,
+      // A short random tail: two briefs for one project finished in the same second must not share a file.
       `CBD_${safeName(cbd.projectName)}_${new Date()
         .toISOString()
         .replace(/[:.]/g, '-')
-        .slice(0, 19)}.docx`
+        .slice(0, 19)}_${crypto.randomBytes(3).toString('hex')}.docx`
     );
 
   const zip = new PizZip(fs.readFileSync(templatePath));
