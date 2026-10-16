@@ -87,13 +87,44 @@ function buildBaselineCard({ meetingId, title, question, canUse }) {
 }
 
 /** The confirmation before a new version: one tap approves it. */
-function buildMergeCard({ meetingId, title, sections, nothing, version }) {
+function buildMergeCard({ meetingId, title, sections, nothing, version, conflicts = [], rewritable = [] }) {
   const body = [{ type: 'TextBlock', text: title, weight: 'Bolder', size: 'Medium', wrap: true }];
   for (const { heading, lines } of sections) {
     body.push({ type: 'TextBlock', text: heading, weight: 'Bolder', size: 'Small', spacing: 'Medium' });
     for (const line of lines) body.push({ type: 'TextBlock', text: line, wrap: true, spacing: 'Small' });
   }
-  if (nothing) body.push({ type: 'TextBlock', text: 'Nothing in the document changes: the meeting did not alter or add anything.', wrap: true, isSubtle: true });
+  if (nothing && !conflicts.length) body.push({ type: 'TextBlock', text: 'Nothing in the document changes: the meeting did not alter or add anything.', wrap: true, isSubtle: true });
+
+  // A conflict is the one case that needs a decision beyond the single approval: someone edited a section by
+  // hand and the meeting changed it too. Each must be answered before the version can be made.
+  for (const c of conflicts) {
+    body.push({ type: 'TextBlock', text: `CONFLICT, ${c.label}`, weight: 'Bolder', size: 'Small', spacing: 'Medium', color: 'Attention' });
+    body.push({ type: 'TextBlock', text: `Someone edited it to: ${c.edited}`, wrap: true, spacing: 'Small' });
+    body.push({ type: 'TextBlock', text: `The meeting says: ${c.meeting}   “${c.quote}”`, wrap: true, spacing: 'Small' });
+    body.push({
+      type: 'Input.ChoiceSet',
+      id: `keep_${c.field}`,
+      style: 'expanded',
+      isRequired: true,
+      errorMessage: 'Choose which to keep',
+      choices: [
+        { title: 'Keep the edit', value: 'person' },
+        { title: "Use the meeting's", value: 'meeting' },
+      ],
+    });
+  }
+  // Optional: replace sections with this meeting's own reading, ignoring what the document says now.
+  if (rewritable.length) {
+    body.push({ type: 'TextBlock', text: 'Optional: rewrite these from this meeting alone', weight: 'Bolder', size: 'Small', spacing: 'Medium' });
+    body.push({
+      type: 'Input.ChoiceSet',
+      id: 'rewrite',
+      style: 'compact',
+      isMultiSelect: true,
+      placeholder: 'Choose sections to rewrite (or none)',
+      choices: rewritable.map((r) => ({ title: r.label, value: r.field })),
+    });
+  }
   const data = (choice) => ({ action: 'confirmMerge', meetingId, choice });
   return {
     type: 'AdaptiveCard',
@@ -101,7 +132,7 @@ function buildMergeCard({ meetingId, title, sections, nothing, version }) {
     version: '1.4',
     body,
     actions: [
-      { type: 'Action.Submit', title: nothing ? `Make v${version} anyway` : `Looks right - generate v${version}`, data: data('yes') },
+      { type: 'Action.Submit', title: nothing && !conflicts.length ? `Make v${version} anyway` : `Looks right - generate v${version}`, data: data('yes') },
       { type: 'Action.Submit', title: 'Cancel', data: data('cancel') },
     ],
   };

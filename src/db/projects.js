@@ -67,7 +67,7 @@ function setLocation(id, { chatId, folderBackend, folderOwner, folderName }) {
  * transaction, so two meetings finishing together cannot both become v2. A
  * previous version is never replaced.
  */
-function addVersion(projectId, { backend, fileRef, fileOwner, uploadedEtag, sourceMeetingId, changeSummary, createdBy }) {
+function addVersion(projectId, { backend, fileRef, fileOwner, uploadedEtag, sourceMeetingId, changeSummary, snapshot, createdBy }) {
   const db = getDb();
   return db.transaction(() => {
     const project = getProject(projectId);
@@ -77,9 +77,9 @@ function addVersion(projectId, { backend, fileRef, fileOwner, uploadedEtag, sour
     const at = now();
     db.prepare(
       `INSERT INTO project_versions
-         (id, project_id, version, file_name, backend, file_ref, file_owner, uploaded_etag, uploaded_at, source_meeting_id, change_summary, created_by)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(crypto.randomUUID(), projectId, version, fileName, backend, fileRef ?? null, fileOwner ?? null, uploadedEtag ?? null, at, sourceMeetingId ?? null, changeSummary ?? null, createdBy ?? null);
+         (id, project_id, version, file_name, backend, file_ref, file_owner, uploaded_etag, uploaded_at, source_meeting_id, change_summary, snapshot, created_by)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(crypto.randomUUID(), projectId, version, fileName, backend, fileRef ?? null, fileOwner ?? null, uploadedEtag ?? null, at, sourceMeetingId ?? null, changeSummary ?? null, snapshot ? JSON.stringify(snapshot) : null, createdBy ?? null);
     db.prepare('UPDATE projects SET current_version = ?, last_activity = ?, updated_at = ? WHERE id = ?').run(version, at, at, projectId);
     return { version, fileName };
   })();

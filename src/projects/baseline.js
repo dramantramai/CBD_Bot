@@ -38,6 +38,15 @@ function questionFor(d) {
     : `**v${d.version}** (${d.fileName}), generated ${day(d.row.uploaded_at)}, not edited since. Is that right?`;
 }
 
+/** What the bot wrote in that version, as values; null for a version saved before this was kept. */
+function originalOf(row) {
+  try {
+    return row && row.snapshot ? JSON.parse(row.snapshot) : null;
+  } catch {
+    return null;
+  }
+}
+
 // ── waiting for the answer, and for a file ───────────────────────────────────
 
 const questions = new Map(); // `${userId}::${meetingId}` -> { resolve, timer }
@@ -116,7 +125,7 @@ async function chooseBaseline({ project, meeting, attendeeId, send, sendText, de
     if (choice === 'use') {
       try {
         const buffer = await storage.readFile({ ownerId: description.row.file_owner, ref: description.row.file_ref });
-        return { mode: 'use', source: 'stored', version: description.version, ...readCbd(buffer) };
+        return { mode: 'use', source: 'stored', version: description.version, original: originalOf(description.row), ...readCbd(buffer) };
       } catch (err) {
         logger.warn({ projectId: project.id, err: err.message }, 'The stored file could not be used as a baseline');
         description = { ...description, problem: err instanceof TemplateLayoutError ? 'it no longer follows the CBD layout' : 'it could not be read' };
@@ -138,7 +147,9 @@ async function chooseBaseline({ project, meeting, attendeeId, send, sendText, de
           : said !== expected
             ? `${file.name} says v${said}, and the last version I saved is v${expected}. I have used it as you asked; changes made in other versions may be missing.`
             : undefined;
-      return { mode: 'use', source: 'uploaded', version: expected, warning, ...read };
+      // The original is known only when the file says it is the version the bot saved.
+      const original = said === expected ? originalOf(description.row) : null;
+      return { mode: 'use', source: 'uploaded', version: expected, warning, original, ...read };
     } catch (err) {
       const why = err instanceof TemplateLayoutError ? 'it no longer follows the CBD layout, so I cannot read it reliably. Send a clean copy' : `I could not read it (${err.message})`;
       await sendText(`I cannot use ${file.name}: ${why}, or start fresh.`);

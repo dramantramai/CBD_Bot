@@ -4,7 +4,7 @@ const path = require('path');
 const { fillTemplate } = require('../src/docgen/fillTemplate');
 const { readCbd } = require('../src/docgen/readBack');
 const { normalize } = require('../src/llm/extractCBD');
-const { mergeCbd, MergeUnavailableError } = require('../src/projects/merge');
+const { mergeCbd, applyChoices, MergeUnavailableError } = require('../src/projects/merge');
 
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'merge-'));
 const TRANSCRIPT = [
@@ -187,5 +187,93 @@ describe('when no capable model is available', () => {
 
   it('needs no model at all when the meeting disagrees with nothing', async () => {
     await expect(mergeCbd({ base: base(), fresh: fresh({}), transcript: NEUTRAL, meeting: MEETING })).resolves.toMatchObject({ changes: [] });
+  });
+});
+
+describe('a person and the meeting both changed the same section', () => {
+  // What the bot first wrote, against what the file says now after a person edited the SPOC.
+  const edited = (over = {}) => {
+    const original = base();
+    const now = base({ spoc: 'Priya Nair', ...over });
+    return { ...now, original: { cbd: original.cbd } };
+  };
+  const quote = 'pushing the launch to the first of December';
+
+  it('is a conflict, with both versions and the words that show the meeting changed it', async () => {
+    const { r } = await run(edited(), fresh({ spoc: 'Kabir Shah' }), { changes: [{ field: 'spoc', verdict: 'changed', quote }] });
+    expect(r.conflicts).toEqual([{ field: 'spoc', label: 'SPOC', edited: 'Priya Nair', meeting: 'Kabir Shah', quote }]);
+  });
+
+  it('is not a conflict when the meeting changed something nobody edited', async () => {
+    const { r } = await run(edited(), fresh({ launchDate: '1 Dec 2026' }), { changes: [{ field: 'launchDate', verdict: 'changed', quote }] });
+    expect(r.conflicts).toEqual([]);
+  });
+
+  it('is not a conflict when a person edited something the meeting did not change: the edit just survives', async () => {
+    const { r } = await run(edited(), fresh({}), {}, 'Ananya: Thanks everyone, we will speak again next week.');
+    expect(r.conflicts).toEqual([]);
+    expect(r.cbd.spoc).toBe('Priya Nair');
+  });
+
+  it('cannot be found when the bot kept no copy of what it wrote, and the merge still works', async () => {
+    const noOriginal = { ...edited(), original: null };
+    const { r } = await run(noOriginal, fresh({ spoc: 'Kabir Shah' }), { changes: [{ field: 'spoc', verdict: 'changed', quote }] });
+    expect(r.conflicts).toEqual([]);
+    expect(r.cbd.spoc).toBe('Kabir Shah');
+  });
+
+  describe('once the organiser has chosen', () => {
+    const merged = async () => (await run(edited(), fresh({ spoc: 'Kabir Shah' }), { changes: [{ field: 'spoc', verdict: 'changed', quote }] })).r;
+
+    it('keeps the person\'s edit, and the meeting\'s change is dropped from the list', async () => {
+      const m = await merged();
+      const out = applyChoices({ merge: m, base: edited(), fresh: fresh({ spoc: 'Kabir Shah' }), keeps: { spoc: 'person' }, meeting: MEETING });
+      expect(out.cbd.spoc).toBe('Priya Nair');
+      expect(out.changes.find((c) => c.field === 'spoc')).toBeUndefined();
+    });
+
+    it('uses the meeting\'s change, and lists it', async () => {
+      const m = await merged();
+      const out = applyChoices({ merge: m, base: edited(), fresh: fresh({ spoc: 'Kabir Shah' }), keeps: { spoc: 'meeting' }, meeting: MEETING });
+      expect(out.cbd.spoc).toBe('Kabir Shah');
+      expect(out.changes.find((c) => c.field === 'spoc')).toMatchObject({ before: 'Priya Nair', after: 'Kabir Shah' });
+    });
+
+    it('leaves everything else as the merge had it', async () => {
+      const m = await merged();
+      const out = applyChoices({ merge: m, base: edited(), fresh: fresh({ spoc: 'Kabir Shah' }), keeps: { spoc: 'person' }, meeting: MEETING });
+      expect(out.cbd.businessObjective).toBe(BASE.businessObjective);
+      expect(out.cbd.projectOwnerName).toBe('Dev Maheshwari');
+    });
+  });
+});
+
+describe('rewriting a section from this meeting alone', () => {
+  const quote = 'pushing the launch to the first of December';
+
+  it('is offered for sections the meeting spoke of, where the document says something else', async () => {
+    const { r } = await run(base(), fresh({ audienceProfile: 'Bankers, 30-50', launchDate: '1 Dec 2026' }), { changes: [{ field: 'launchDate', verdict: 'not_discussed' }, { field: 'audienceProfile', verdict: 'same' }] });
+    expect(r.rewritable.map((x) => x.field).sort()).toEqual(['audienceProfile', 'launchDate']);
+    expect(r.rewritable.find((x) => x.field === 'audienceProfile')).toMatchObject({ current: 'Urban professionals', fresh: 'Bankers, 30-50' });
+  });
+
+  it('is not offered for what the meeting did not speak of, the project owner, or what already matches', async () => {
+    const { r } = await run(base(), fresh({ spoc: 'Ananya Rao' }), {}, NEUTRAL);
+    expect(r.rewritable).toEqual([]);
+  });
+
+  it('replaces the section with this meeting\'s reading, and says it was rewritten', async () => {
+    const f = fresh({ audienceProfile: 'Bankers, 30-50' });
+    const { r } = await run(base(), f, { changes: [{ field: 'audienceProfile', verdict: 'same' }] });
+    const out = applyChoices({ merge: r, base: base(), fresh: f, rewrite: ['audienceProfile'], meeting: MEETING });
+    expect(out.cbd.audienceProfile).toBe('Bankers, 30-50');
+    expect(out.changes.find((c) => c.field === 'audienceProfile')).toMatchObject({ before: 'Urban professionals', after: 'Bankers, 30-50', rewritten: true });
+  });
+
+  it('ignores a section that was not offered', async () => {
+    const f = fresh({ audienceProfile: 'Bankers, 30-50' });
+    const { r } = await run(base(), f, { changes: [{ field: 'audienceProfile', verdict: 'same' }] });
+    const out = applyChoices({ merge: r, base: base(), fresh: f, rewrite: ['solutionScope'], meeting: MEETING });
+    expect(out.cbd.solutionScope).toBe(BASE.solutionScope);
   });
 });

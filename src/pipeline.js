@@ -17,7 +17,7 @@ const { suggestProject, clientNotMentioned } = require('./projects/suggest');
 const { askProject } = require('./projects/projectPrompt');
 const { deliverToProject } = require('./projects/deliver');
 const { chooseBaseline } = require('./projects/baseline');
-const { mergeCbd, MergeUnavailableError } = require('./projects/merge');
+const { mergeCbd, applyChoices, MergeUnavailableError } = require('./projects/merge');
 const confirmMerge = require('./projects/confirmMerge');
 const { addChangesBlock } = require('./docgen/changesBlock');
 const { applyReplay } = require('./replay');
@@ -265,7 +265,7 @@ async function chooseBaselineFor({ project, meeting, attendeeId, botAdapter, hoo
 /** One tap approves a merge. Offline it is approved, so a run needs nobody to press anything. */
 async function confirmMergeFor({ merge, meeting, attendeeId, botAdapter, version, baselineVersion, warning, hook }) {
   if (hook) return hook({ merge, meeting, version, baselineVersion });
-  if (env.MOCK_MODE) return 'yes';
+  if (env.MOCK_MODE) return { choice: 'yes', keeps: {}, rewrite: [] };
   return confirmMerge.ask({
     meeting,
     userId: attendeeId,
@@ -321,11 +321,14 @@ async function generateAndDeliver({ transcript, meeting, attendeeId, botAdapter,
       await personal(`I could not build v${next} on top of v${baseline.version}: ${err.message}. Nothing was made; I never produce a degraded merge. Try again later, or choose Start fresh to build it from this meeting alone.`);
       return { status: 'failed', kind: 'client', verdict, meeting, project };
     }
-    const choice = await confirmMergeFor({ merge: merged, meeting, attendeeId, botAdapter, version: next, baselineVersion: baseline.version, warning: baseline.warning, hook: hooks.confirmMerge });
-    if (choice !== 'yes') {
-      await personal(choice === 'timeout' ? `I did not hear back, so I did not make v${next}.` : `Cancelled: v${next} was not made.`);
+    const answered = await confirmMergeFor({ merge: merged, meeting, attendeeId, botAdapter, version: next, baselineVersion: baseline.version, warning: baseline.warning, hook: hooks.confirmMerge });
+    const decision = typeof answered === 'string' ? { choice: answered } : answered;
+    if (decision.choice !== 'yes') {
+      await personal(decision.choice === 'timeout' ? `I did not hear back, so I did not make v${next}.` : `Cancelled: v${next} was not made.`);
       return { status: 'cancelled', kind: 'client', verdict, meeting, project };
     }
+    // The organiser's choices: which side of each conflict to keep, and any sections to rewrite from this meeting alone.
+    merged = applyChoices({ merge: merged, base: baseline, fresh, keeps: decision.keeps, rewrite: decision.rewrite, meeting });
     cbd = merged.cbd;
   }
 

@@ -5,6 +5,7 @@ const adapters = require('../config/adapters');
 const projectsDb = require('../db/projects');
 const { getStorage } = require('../storage');
 const { stampVersion } = require('../docgen/versionHeader');
+const { readCbd } = require('../docgen/readBack');
 const realChat = require('./graphChat');
 const fakeChat = require('./fakeChat');
 
@@ -80,12 +81,22 @@ async function deliverToProject({ project, filePath, summary, changeSummary, mee
     notes.push('The project owner\'s sign-in has expired, so this version is in your own OneDrive. Ask them to say "sign in".');
   }
 
+  // What the bot wrote, as values read back the same way a later edit will be, so the two can be compared.
+  let snapshot = null;
+  try {
+    const { cbd, flagged } = readCbd(content);
+    snapshot = { cbd, flagged };
+  } catch (err) {
+    logger.warn({ projectId: project.id, err: say(err) }, 'Could not keep a snapshot of the saved version');
+  }
+
   const { version } = projectsDb.addVersion(project.id, {
     backend: storage.name,
     fileRef: saved.ref,
     fileOwner: savedBy,
     uploadedEtag: saved.etag,
     changeSummary,
+    snapshot,
     sourceMeetingId: meeting.id,
     createdBy: attendeeId,
   });

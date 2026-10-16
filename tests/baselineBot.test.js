@@ -54,14 +54,23 @@ describe('the confirmation before a new version, in Teams', () => {
     const u = user();
     const waiting = open('cm-bot1', u);
     expect(await press(u, { action: 'confirmMerge', meetingId: 'cm-bot1', choice: 'yes' })).toMatch(/Generating the new version/);
-    expect(await waiting).toBe('yes');
+    expect((await waiting).choice).toBe('yes');
   });
 
   it('cancels, and says nothing was made', async () => {
     const u = user();
     const waiting = open('cm-bot2', u);
     expect(await press(u, { action: 'confirmMerge', meetingId: 'cm-bot2', choice: 'cancel' })).toMatch(/no new version was made/);
-    expect(await waiting).toBe('cancel');
+    expect((await waiting).choice).toBe('cancel');
+  });
+
+  it('says what to decide when a conflict is unanswered, and leaves the question open', async () => {
+    const u = user();
+    const m = { ...merge, conflicts: [{ field: 'launchDate', label: 'Launch date', edited: 'a', meeting: 'b', quote: 'q q q' }] };
+    const waiting = confirmMerge.ask({ meeting: { id: 'cm-bot3', subject: 'S' }, userId: u, merge: m, version: 2, baselineVersion: 1, send: () => {} });
+    expect(await press(u, { action: 'confirmMerge', meetingId: 'cm-bot3', choice: 'yes' })).toMatch(/Choose which to keep for: Launch date/);
+    expect(await press(u, { action: 'confirmMerge', meetingId: 'cm-bot3', choice: 'yes', keep_launchDate: 'person' })).toMatch(/Generating the new version/);
+    expect((await waiting).keeps).toEqual({ launchDate: 'person' });
   });
 
   it('says it is no longer waiting when there is nothing to confirm', async () => {

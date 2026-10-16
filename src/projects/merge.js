@@ -144,6 +144,23 @@ async function mergeCbd({ base, fresh, transcript, meeting, deps = {} }) {
     }
   }
 
+  // A change to something a person edited by hand since the bot wrote it is a conflict: the organiser
+  // chooses which to keep. Only possible when the bot kept what it wrote (versions saved since then).
+  const original = base.original && base.original.cbd;
+  const editedByHand = (field) => original && !same(original[field], base.cbd[field]);
+  result.conflicts = result.changes
+    .filter((c) => editedByHand(c.field))
+    .map((c) => ({ field: c.field, label: c.label, edited: c.before, meeting: c.after, quote: c.quote }));
+
+  // Sections the meeting did speak of, where the document now says something else: the organiser may
+  // choose to replace any of them with this meeting's reading alone (rewrite a section).
+  result.rewritable = FIELDS.filter((f) => !CALENDAR_FIELDS.includes(f) && discussed(f) && !same(values[f], fresh[f])).map((f) => ({
+    field: f,
+    label: nameOf(f),
+    current: asText(values[f]),
+    fresh: asText(fresh[f]),
+  }));
+
   // Back into the shape the document is built from. A field still flagged in the old document stays
   // flagged unless the meeting replaced it; one a person has accepted is fully trusted.
   const changed = new Set([...result.changes.map((c) => c.field), ...result.added.map((a) => a.field)]);
@@ -158,4 +175,36 @@ async function mergeCbd({ base, fresh, transcript, meeting, deps = {} }) {
   return { cbd: merged, ...result };
 }
 
-module.exports = { mergeCbd, MergeUnavailableError, nameOf, CALENDAR_FIELDS, NARRATIVE_FIELDS };
+/**
+ * The merge after the organiser's choices: for each conflict, keep the person's edit or the meeting's change;
+ * and any sections they asked to rewrite from this meeting alone take the fresh reading.
+ */
+function applyChoices({ merge, base, fresh, keeps = {}, rewrite = [], meeting }) {
+  const values = {};
+  for (const f of FIELDS) values[f] = merge.cbd[f];
+  const confidence = { ...merge.cbd.confidence };
+  const baseFlagged = new Set(base.flagged || []);
+  let changes = merge.changes.slice();
+
+  for (const c of merge.conflicts || []) {
+    if (keeps[c.field] === 'person') {
+      values[c.field] = base.cbd[c.field];
+      confidence[c.field] = baseFlagged.has(c.field) ? 2 : 5;
+      changes = changes.filter((x) => x.field !== c.field);
+    }
+  }
+  for (const f of rewrite) {
+    const offered = (merge.rewritable || []).find((r) => r.field === f);
+    if (!offered) continue; // only what was offered
+    changes = changes.filter((x) => x.field !== f);
+    changes.push({ field: f, label: nameOf(f), before: asText(values[f]), after: asText(fresh[f]), quote: null, rewritten: true });
+    values[f] = fresh[f];
+    confidence[f] = Math.max(fresh.confidence[f] ?? CONFIDENT, CONFIDENT);
+  }
+
+  const cbd = normalize({ ...values, checkboxes: merge.cbd.checkboxes, confidence }, { meeting });
+  for (const field of CALENDAR_FIELDS) if (!isEmpty(base.cbd[field])) cbd[field] = base.cbd[field];
+  return { ...merge, cbd, changes };
+}
+
+module.exports = { mergeCbd, applyChoices, MergeUnavailableError, nameOf, CALENDAR_FIELDS, NARRATIVE_FIELDS };

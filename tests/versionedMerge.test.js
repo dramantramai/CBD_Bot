@@ -154,3 +154,50 @@ describe('a second meeting for a project that has a v1', () => {
     expect(asked).toBe(false);
   });
 });
+
+describe('a conflict and a rewrite, through the pipeline', () => {
+  const change = { changes: [{ field: 'spoc', verdict: 'changed', quote: QUOTE }] };
+
+  it('asks about a section that a person edited and the meeting changed, and keeps the edit when told to', async () => {
+    editV1('Ananya Rao', 'Priya Nair'); // a person edits the SPOC offline
+    reading = { ...reading, spoc: 'Kabir Shah' };
+    let shown;
+    await run({ onChooseBaseline: useBaseline(), mergeCompare: compare(change), onConfirmMerge: async ({ merge }) => { shown = merge; return { choice: 'yes', keeps: { spoc: 'person' }, rewrite: [] }; } });
+    expect(shown.conflicts).toEqual([expect.objectContaining({ field: 'spoc', edited: 'Priya Nair', meeting: 'Kabir Shah' })]);
+    expect(readCbd(stored('VerdantKitchens_Video_v2.docx').content).cbd.spoc).toBe('Priya Nair');
+  });
+
+  it('uses the meeting\'s change when the organiser chooses it', async () => {
+    editV1('Ananya Rao', 'Priya Nair');
+    reading = { ...reading, spoc: 'Kabir Shah' };
+    await run({ onChooseBaseline: useBaseline(), mergeCompare: compare(change), onConfirmMerge: async () => ({ choice: 'yes', keeps: { spoc: 'meeting' }, rewrite: [] }) });
+    expect(readCbd(stored('VerdantKitchens_Video_v2.docx').content).cbd.spoc).toBe('Kabir Shah');
+  });
+
+  it('knows nothing was edited when only the bot has written the file, so there is no conflict', async () => {
+    reading = { ...reading, spoc: 'Kabir Shah' };
+    let shown;
+    await run({ onChooseBaseline: useBaseline(), mergeCompare: compare(change), onConfirmMerge: async ({ merge }) => { shown = merge; return 'yes'; } });
+    expect(shown.conflicts).toEqual([]);
+  });
+
+  it('rewrites a section from this meeting alone when asked, and shows it in the Changes block', async () => {
+    reading = { ...reading, businessObjective: 'A warm, family brand.' };
+    await run({
+      onChooseBaseline: useBaseline(),
+      mergeCompare: compare({ changes: [{ field: 'businessObjective', verdict: 'same' }] }),
+      onConfirmMerge: async ({ merge }) => {
+        expect(merge.rewritable.map((r) => r.field)).toContain('businessObjective');
+        return { choice: 'yes', keeps: {}, rewrite: ['businessObjective'] };
+      },
+    });
+    expect(readCbd(stored('VerdantKitchens_Video_v2.docx').content).cbd.businessObjective).toBe('A warm, family brand.');
+    const xml = new PizZip(stored('VerdantKitchens_Video_v2.docx').content).file('word/document.xml').asText();
+    expect(xml).toContain('Business objective: Reposition as a premium brand. → A warm, family brand.');
+  });
+
+  it('keeps a snapshot of what the bot wrote in every version, so the next edit can be recognised', async () => {
+    const row = projectsDb.getVersions(project.id)[0];
+    expect(JSON.parse(row.snapshot).cbd.spoc).toBe('Ananya Rao');
+  });
+});

@@ -65,6 +65,7 @@ CREATE TABLE IF NOT EXISTS project_versions (
   uploaded_at       TEXT NOT NULL,
   source_meeting_id TEXT,
   change_summary    TEXT,
+  snapshot          TEXT,            -- the document's values as the bot wrote them (JSON), to tell a person's later edit from its own text
   created_by        TEXT,
   UNIQUE (project_id, version)
 );

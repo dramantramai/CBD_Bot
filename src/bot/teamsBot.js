@@ -251,8 +251,10 @@ class CbdBot extends TeamsActivityHandler {
     }
 
     if (value.action === 'confirmMerge') {
-      const ok = confirmMerge.answer({ meetingId: value.meetingId, userId, choice: value.choice });
-      await context.sendActivity(!ok ? 'I am no longer waiting on that question.' : value.choice === 'yes' ? 'Generating the new version...' : 'Cancelled: no new version was made.');
+      const result = confirmMerge.answer({ meetingId: value.meetingId, userId, choice: value.choice, value });
+      await context.sendActivity(
+        !result.ok ? result.message : value.choice === 'yes' ? 'Generating the new version...' : 'Cancelled: no new version was made.'
+      );
       return;
     }
 

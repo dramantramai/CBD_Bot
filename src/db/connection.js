@@ -27,6 +27,7 @@ function getDb() {
   addColumnIfMissing(db, 'meeting_logs', 'transcript_ids', 'TEXT');
   addColumnIfMissing(db, 'meeting_logs', 'project_id', 'TEXT');
   addColumnIfMissing(db, 'project_versions', 'file_owner', 'TEXT');
+  addColumnIfMissing(db, 'project_versions', 'snapshot', 'TEXT');
   return db;
 }
 
