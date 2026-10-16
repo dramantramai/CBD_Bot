@@ -80,6 +80,26 @@ describe('after a person has been in the file', () => {
     expect(readCbd(withXml(base, edited)).cbd.businessObjective).toBe(CBD.businessObjective);
   });
 
+  it('reads boxes ticked by hand and saved by Word, which writes its tags with a space before the slash', () => {
+    // Word saves `<w:id w:val="1" />` and `<w14:checked w14:val="1" />`; the bot writes them without the space.
+    // Reading only the bot's own spelling lost every box a person ticked (found on a real file).
+    let xml = docXml(base);
+    // untick Formal the way the bot would have it, then tick "Casual" the way Word does
+    xml = xml.replace(/<w:sdt>[\s\S]*?<\/w:sdt>/g, (block) => block.replace(/"\/>/g, '" />'));
+    const out = readCbd(withXml(base, xml));
+    expect(out.cbd.checkboxes.tone).toEqual(['Formal']);
+    expect(out.cbd.checkboxes.audience.sort()).toEqual(['Executive & Management', 'Internal team']);
+  });
+
+  it('sees a box a person ticks, in markup shaped the way Word writes it', () => {
+    const xml = docXml(base);
+    const unticked = (xml.match(/<w:sdt>[\s\S]*?<\/w:sdt>/g) || []).find((b) => /w14:checked w14:val="0"\/>/.test(b) && /<w:id w:val="-?\d+"\/>/.test(b));
+    const wordy = unticked.replace(/"\/>/g, '" />').replace('w14:checked w14:val="0" />', 'w14:checked w14:val="1" />').replace('☐', '☒');
+    const out = readCbd(withXml(base, xml.replace(unticked, wordy)));
+    const total = (c) => Object.values(c).reduce((n, l) => n + l.length, 0);
+    expect(total(out.cbd.checkboxes)).toBe(total(readCbd(base).cbd.checkboxes) + 1);
+  });
+
   it('keeps a field flagged until someone resolves it', () => {
     expect(readCbd(base).flagged).toContain('escalationPoint');
     const fixed = withXml(base, docXml(base).replace(/\[NEEDS CONFIRMATION\]/g, 'Kabir Shah'));

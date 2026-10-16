@@ -105,9 +105,11 @@ function unflag(value) {
 function readBoxes(xml) {
   const ticked = {};
   for (const block of xml.match(/<w:sdt>[\s\S]*?<\/w:sdt>/g) || []) {
-    const id = (block.match(/<w:id w:val="(-?\d+)"\/>/) || [])[1];
+    // Word rewrites these tags as `<w:id w:val="1" />` (a space before the slash) when a person saves, so
+    // both spellings are read: matching only the bot's own was how ticks made by hand went unseen.
+    const id = (block.match(/<w:id\s+w:val="(-?\d+)"\s*\/?>/) || [])[1];
     const entry = id && checkboxMap[id];
-    if (entry && /<w14:checked w14:val="1"\/>/.test(block)) (ticked[entry.group] = ticked[entry.group] || []).push(entry.label);
+    if (entry && /<w14:checked\s+w14:val="(?:1|true)"\s*\/?>/.test(block)) (ticked[entry.group] = ticked[entry.group] || []).push(entry.label);
   }
   return ticked;
 }
