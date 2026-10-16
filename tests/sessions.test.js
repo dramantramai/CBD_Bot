@@ -97,6 +97,23 @@ describe('a meeting held again on the same link', () => {
   });
 });
 
+describe('a button pressed for another kind on a card that already made one', () => {
+  it('is processed although the meeting was briefed, where a redelivery of the same notification is not', async () => {
+    available = ['T1'];
+    expect((await run('T1')).status).toBe('processed');
+    expect((await run('T1')).status).toBe('duplicate');
+    const again = await processMeeting({ fixture: 'client-meeting', transcriptId: 'T1', again: true, onConfirm: ask('client') });
+    expect(again.status).toBe('processed');
+  });
+
+  it('reads the session again, not only transcripts not yet covered', async () => {
+    available = ['T1'];
+    await run('T1');
+    await processMeeting({ fixture: 'client-meeting', transcriptId: 'T1', again: true, onConfirm: ask('client') });
+    expect(fetchedWith.at(-1)).toEqual([]); // nothing skipped: the transcript is the point
+  });
+});
+
 describe('what the organiser sees', () => {
   it('names the meeting as a new transcript when it was held before', async () => {
     const { askUser, settle } = require('../src/filter/uncertainPrompt');

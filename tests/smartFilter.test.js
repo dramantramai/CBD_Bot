@@ -6,9 +6,10 @@ const internalStandup = require('../fixtures/meetings/internal-standup.json');
 const ambiguous = require('../fixtures/meetings/ambiguous-meeting.json');
 
 describe('smartFilter', () => {
-  it('briefs a long meeting that has external attendees', () => {
+  it('asks what to make for a long meeting with external attendees, and names their domain', () => {
     const r = shouldProcessMeeting(clientMeeting);
-    expect(r.decision).toBe('process');
+    expect(r.decision).toBe('uncertain');
+    expect(r.reason).toBe('processed');
     expect(r.externalDomains).toContain('verdantkitchens.in');
   });
 
@@ -20,8 +21,8 @@ describe('smartFilter', () => {
     expect(r.kind).toBeUndefined(); // no default: client brief, meeting brief or skip
   });
 
-  it('says a meeting with outsiders would produce a client brief', () => {
-    expect(shouldProcessMeeting(clientMeeting).kind).toBe('client');
+  it('has no default for any meeting: client brief, meeting brief or skip is the organiser\'s call', () => {
+    expect(shouldProcessMeeting(clientMeeting).kind).toBeUndefined();
   });
 
   it('skips a short internal meeting', () => {
@@ -58,7 +59,7 @@ describe('smartFilter', () => {
       ...clientMeeting,
       endDateTime: '2026-09-22T10:15:00Z',
     };
-    expect(shouldProcessMeeting(exactly15).decision).toBe('process');
+    expect(shouldProcessMeeting(exactly15).decision).toBe('uncertain'); // asked, not skipped
   });
 
   it('does not let a lookalike domain pass as internal', () => {

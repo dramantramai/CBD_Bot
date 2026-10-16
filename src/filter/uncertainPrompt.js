@@ -5,6 +5,7 @@ const decisions = require('../db/decisions');
 const meetingsDb = require('../db/meetings');
 
 const KIND = 'confirm_meeting';
+const KEEPS_CARD_OPEN = new Set(['client', 'meeting']);
 
 // meetingId -> { meeting, userId, timer, resolve }
 const pending = new Map();
@@ -18,6 +19,7 @@ const QUESTION = {
 
 // The three-way question, worded for why it is being asked.
 const PROMPT = {
+  processed: 'Someone from outside Dramantram was in it. What would you like me to make?',
   internal_and_long: 'Everyone in it was from Dramantram. What would you like me to make?',
   default: 'I could not tell whether this was a client meeting. What would you like?',
 };
@@ -90,15 +92,20 @@ function settle(meetingId, userId, answer) {
   if (!entry) return false;
   clearTimeout(entry.timer);
   pending.delete(id);
-  decisions.setStatus(entry.decisionId, 'answered');
+  // A brief made from the card does not close it: the other kind can still be asked for.
+  if (!KEEPS_CARD_OPEN.has(answer)) decisions.setStatus(entry.decisionId, 'answered');
   entry.resolve(answer);
   return true;
 }
 
-/** Logs a prompt that ran out of time as a No, so that meeting is not asked about again. */
+/**
+ * Closes a prompt that ran out of time. Unanswered, that is a No and is remembered, so the
+ * meeting is not asked about again; a card that already produced a brief just closes.
+ */
 function expire(row) {
   decisions.setStatus(row.id, 'expired');
   const p = row.payload;
+  if (meetingsDb.madeKinds(p.meetingId, row.user_id, p.transcriptId).size) return;
   meetingsDb.logMeeting({
     meetingId: p.meetingId,
     meetingTitle: p.subject,
@@ -112,10 +119,13 @@ function expire(row) {
 /**
  * A button was pressed. Returns what happened:
  *   'live'     - the process that asked is still waiting; it carries on
- *   'resumed'  - the process was restarted since the card was sent; `resume`
- *                runs the meeting again from the stored details
+ *   'resumed'  - nobody is waiting (the bot restarted, or a brief was already made from this
+ *                card): `resume` runs the meeting again for the kind pressed. `again` is true
+ *                when this is a second kind from a card that already produced one
+ *   'already'  - that kind was already made and sent; nothing is generated
+ *   'closed'   - Skip, after a brief was already made: the card is simply closed
  *   'expired'  - the prompt ran out of time first; it counts as a No
- *   'gone'     - no open prompt (already answered, or never existed)
+ *   'gone'     - no open prompt (already skipped, or never existed)
  */
 function answer({ meetingId, userId, answer: pressed, resume }) {
   if (settle(meetingId, userId, pressed)) return 'live';
@@ -125,8 +135,15 @@ function answer({ meetingId, userId, answer: pressed, resume }) {
     expire(row);
     return 'expired';
   }
-  decisions.setStatus(row.id, 'answered');
-  resume(row.payload, pressed);
+
+  const made = meetingsDb.madeKinds(meetingId, userId, row.payload.transcriptId);
+  if (made.has(pressed)) return 'already';
+  if (pressed === 'no' && made.size) {
+    decisions.setStatus(row.id, 'answered');
+    return 'closed';
+  }
+  if (!KEEPS_CARD_OPEN.has(pressed)) decisions.setStatus(row.id, 'answered');
+  resume(row.payload, pressed, { again: made.size > 0 });
   return 'resumed';
 }
 

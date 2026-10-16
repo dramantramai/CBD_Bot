@@ -81,6 +81,18 @@ function lastProjectOf(meetingId) {
   return row ? row.project_id : null;
 }
 
+/**
+ * Which briefs have already been made for a meeting ('client', 'meeting'). Pressing a button
+ * for one that exists must not make it again: that would spend the model's limit on a
+ * document the person already has.
+ */
+function madeKinds(meetingId, userId, transcriptId) {
+  const rows = findByMeetingId(meetingId, userId).filter(
+    (r) => r.cbd_generated === 1 && (!transcriptId || !r.transcript_ids || idsOf(r).includes(transcriptId))
+  );
+  return new Set(rows.map((r) => (r.output_kind === 'meeting_brief' ? 'meeting' : 'client')));
+}
+
 /** Transcripts already dealt with for this meeting, so a later session starts from its own. */
 function coveredTranscriptIds(meetingId, userId) {
   return new Set(findByMeetingId(meetingId, userId).flatMap(idsOf));
@@ -111,6 +123,7 @@ module.exports = {
   findByMeetingId,
   priorOutcome,
   coveredTranscriptIds,
+  madeKinds,
   lastProjectOf,
   hasEarlierSession,
   listRecent,

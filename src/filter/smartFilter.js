@@ -58,11 +58,12 @@ function shouldProcessMeeting(meeting, options = {}) {
     return { ...base, decision: DECISION.SKIP, reason: REASON.SHORT };
   }
 
+  // Someone outside Dramantram was there, so a client brief is the likely want, but the
+  // organiser may want the meeting brief too; both are offered, with no default.
   if (externals.length > 0) {
     return {
       ...base,
-      decision: DECISION.PROCESS,
-      kind: KIND.CLIENT,
+      decision: DECISION.UNCERTAIN,
       reason: REASON.EXTERNAL_AND_LONG,
       externalDomains: [
         ...new Set(externals.map((a) => a.email.split('@')[1].toLowerCase())),

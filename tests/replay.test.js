@@ -77,8 +77,9 @@ describe('one transcript standing in for every kind of meeting', () => {
     expect(verdict.kind).toBeUndefined();
   });
 
-  it('becomes a client meeting with an outside attendee', async () => {
-    expect((await kindOf({ attendees: ['dev@dramantram.com', 'ananya@client.com'] })).verdict.kind).toBe('client');
+  it('becomes a meeting with outsiders when one is added, and is asked about with their domain', async () => {
+    const { verdict } = await kindOf({ attendees: ['dev@dramantram.com', 'ananya@client.com'] });
+    expect(verdict).toMatchObject({ decision: 'uncertain', reason: 'processed', externalDomains: ['client.com'] });
   });
 
   it('becomes unresolved with a dial-in guest, so the organiser is asked what is wanted', async () => {

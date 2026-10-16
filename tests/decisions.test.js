@@ -62,14 +62,14 @@ describe('a card pressed after the bot was restarted', () => {
     expect(resumed).toHaveLength(1);
     expect(resumed[0][0]).toMatchObject({ meetingId: 'm3', transcriptId: 'T9', joinUrl: 'https://join' });
     expect(resumed[0][1]).toBe('client');
-    expect(statusOf(id)).toBe('answered');
+    expect(statusOf(id)).toBe('open'); // a brief does not use the card up: the other kind can still be asked for
   });
 
-  it('can be pressed once only: a second press finds nothing open', () => {
+  it('can be skipped once only: a second press finds nothing open', () => {
     const u = user();
     leftBehind(u, 'm4');
-    answer({ meetingId: 'm4', userId: u, answer: 'yes', resume: () => {} });
-    expect(answer({ meetingId: 'm4', userId: u, answer: 'yes', resume: () => { throw new Error('twice'); } })).toBe('gone');
+    answer({ meetingId: 'm4', userId: u, answer: 'no', resume: () => {} });
+    expect(answer({ meetingId: 'm4', userId: u, answer: 'client', resume: () => { throw new Error('after a skip'); } })).toBe('gone');
   });
 
   it('never answers for someone else', () => {
@@ -141,5 +141,127 @@ describe('sweeping prompts left from before a restart', () => {
     expect(meetingsDb.priorOutcome('m9', stale, 'T9')).toBe('declined');
     expect(statusOf(freshId)).toBe('open');
     expect(await waiting).toBe('no'); // its own timer settled it
+  });
+});
+
+describe('one card, both kinds of brief', () => {
+  const made = (u, meetingId, kind, transcriptId) =>
+    meetingsDb.logMeeting({ meetingId, userId: u, filterResult: 'processed', cbdGenerated: true, outputKind: kind, transcriptIds: transcriptId ? [transcriptId] : [] });
+  const press = (u, meetingId, pressed) => {
+    const resumed = [];
+    const outcome = answer({ meetingId, userId: u, answer: pressed, resume: (p, a, opts) => resumed.push([a, opts]) });
+    return { outcome, resumed };
+  };
+
+  it('makes the other kind from the same card after the first was made, flagged as an explicit request', () => {
+    const u = user();
+    leftBehind(u, 'm20', { payload: { transcriptId: 'T20' } });
+    made(u, 'm20', 'meeting_brief', 'T20');
+    const { outcome, resumed } = press(u, 'm20', 'client');
+    expect(outcome).toBe('resumed');
+    expect(resumed).toEqual([['client', { again: true }]]);
+  });
+
+  it('does not make a kind again that already exists, so no model is spent on it', () => {
+    const u = user();
+    leftBehind(u, 'm21', { payload: { transcriptId: 'T21' } });
+    made(u, 'm21', 'client_brief', 'T21');
+    const { outcome, resumed } = press(u, 'm21', 'client');
+    expect(outcome).toBe('already');
+    expect(resumed).toEqual([]);
+  });
+
+  it('allows both kinds, each once, in either order', () => {
+    const u = user();
+    leftBehind(u, 'm22', { payload: { transcriptId: 'T22' } });
+    expect(press(u, 'm22', 'meeting').outcome).toBe('resumed');
+    made(u, 'm22', 'meeting_brief', 'T22');
+    expect(press(u, 'm22', 'client').outcome).toBe('resumed');
+    made(u, 'm22', 'client_brief', 'T22');
+    expect(press(u, 'm22', 'meeting').outcome).toBe('already');
+    expect(press(u, 'm22', 'client').outcome).toBe('already');
+  });
+
+  it('counts a brief of another session of the same meeting as a different brief', () => {
+    const u = user();
+    leftBehind(u, 'm23', { payload: { transcriptId: 'T-second' } });
+    made(u, 'm23', 'client_brief', 'T-first');
+    expect(press(u, 'm23', 'client').outcome).toBe('resumed'); // first session's brief is not this session's
+  });
+
+  it('closes the card on Skip after a brief was made, without remembering a decline', () => {
+    const u = user();
+    const id = leftBehind(u, 'm24', { payload: { transcriptId: 'T24' } });
+    made(u, 'm24', 'client_brief', 'T24');
+    expect(press(u, 'm24', 'no').outcome).toBe('closed');
+    expect(statusOf(id)).toBe('answered');
+    expect(getDb().prepare("SELECT COUNT(*) AS n FROM meeting_logs WHERE meeting_id = 'm24' AND filter_result = 'skipped_user'").get().n).toBe(0);
+  });
+
+  it('does not record a decline when a card that produced a brief runs out of time', () => {
+    const u = user();
+    const id = leftBehind(u, 'm25', { ageHours: 3, payload: { transcriptId: 'T25' } });
+    made(u, 'm25', 'meeting_brief', 'T25');
+    expect(press(u, 'm25', 'client').outcome).toBe('expired');
+    expect(statusOf(id)).toBe('expired');
+    expect(getDb().prepare("SELECT COUNT(*) AS n FROM meeting_logs WHERE meeting_id = 'm25' AND filter_result = 'skipped_user'").get().n).toBe(0);
+  });
+
+  it('keeps the live card usable after the first press, and a repeat of that press is refused once the brief exists', async () => {
+    const u = user();
+    const waiting = askUser({ meeting: meeting('m26'), userId: u, send: () => {}, resumeWith: { transcriptId: 'T26' } });
+    expect(press(u, 'm26', 'meeting').outcome).toBe('live');
+    expect(await waiting).toBe('meeting');
+    const id = rowsOf(u)[0].id;
+    expect(statusOf(id)).toBe('open');
+    made(u, 'm26', 'meeting_brief', 'T26');
+    expect(press(u, 'm26', 'meeting').outcome).toBe('already');
+    expect(press(u, 'm26', 'client').outcome).toBe('resumed');
+  });
+});
+
+describe('pressing a button for a brief that exists, through the bot', () => {
+  const pipeline = require('../src/pipeline');
+  const context = (u) => {
+    const out = [];
+    return { out, activity: { from: { id: u } }, adapter: {}, sendActivity: async (a) => out.push(a) };
+  };
+
+  it('says it was already made and sent, and starts no work at all', async () => {
+    const u = user();
+    leftBehind(u, 'm30', { payload: { transcriptId: 'T30' } });
+    meetingsDb.logMeeting({ meetingId: 'm30', userId: u, filterResult: 'processed', cbdGenerated: true, outputKind: 'client_brief', transcriptIds: ['T30'] });
+
+    const started = [];
+    const real = pipeline.processMeeting;
+    pipeline.processMeeting = async (args) => { started.push(args); return { status: 'processed' }; };
+    try {
+      const c = context(u);
+      await new CbdBot().handleCardAction(c, { action: 'confirmMeeting', answer: 'client', meetingId: 'm30' });
+      expect(c.out[0]).toMatch(/already made the client brief.*last client brief/);
+      expect(started).toEqual([]);
+    } finally {
+      pipeline.processMeeting = real;
+    }
+  });
+
+  it('makes the other kind, telling the pipeline it is an explicit request', async () => {
+    const u = user();
+    leftBehind(u, 'm31', { payload: { transcriptId: 'T31' } });
+    meetingsDb.logMeeting({ meetingId: 'm31', userId: u, filterResult: 'processed', cbdGenerated: true, outputKind: 'meeting_brief', transcriptIds: ['T31'] });
+
+    const started = [];
+    const real = pipeline.processMeeting;
+    pipeline.processMeeting = async (args) => { started.push(args); return { status: 'processed' }; };
+    try {
+      const c = context(u);
+      await new CbdBot().handleCardAction(c, { action: 'confirmMeeting', answer: 'client', meetingId: 'm31' });
+      expect(c.out[0]).toMatch(/On it/);
+      expect(started).toHaveLength(1);
+      expect(started[0]).toMatchObject({ meetingId: 'm31', transcriptId: 'T31', again: true });
+      expect(await started[0].onConfirm()).toBe('client');
+    } finally {
+      pipeline.processMeeting = real;
+    }
   });
 });

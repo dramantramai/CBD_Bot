@@ -232,7 +232,7 @@ class CbdBot extends TeamsActivityHandler {
         userId,
         answer: value.answer,
         // The bot was restarted since the card was sent: run the meeting again, answered.
-        resume: (payload, pressed) => {
+        resume: (payload, pressed, { again } = {}) => {
           require('../pipeline')
             .processMeeting({
               meetingId: payload.fixture ? undefined : payload.meetingId,
@@ -241,6 +241,7 @@ class CbdBot extends TeamsActivityHandler {
               transcriptId: payload.transcriptId,
               joinUrl: payload.joinUrl,
               botAdapter: context.adapter,
+              again,
               onConfirm: async () => pressed,
             })
             .catch((err) => logger.error({ meetingId: payload.meetingId, err: err.message }, 'Could not resume a prompt after a restart'));
@@ -248,7 +249,12 @@ class CbdBot extends TeamsActivityHandler {
       });
       const wanted = value.answer !== 'no';
       const text = {
-        gone: 'I am no longer waiting on that prompt. It was already answered, or it was never mine to ask.',
+        gone: 'I am no longer waiting on that prompt. It was already skipped, or it was never mine to ask.',
+        closed: 'Okay, nothing more will come from this card.',
+        already:
+          value.answer === 'meeting'
+            ? 'I already made the meeting brief for this meeting and sent it: it is above in this chat.'
+            : 'I already made the client brief for this meeting and sent it. Say "last client brief" if you need the file again.',
         expired:
           'That prompt has already expired, so I skipped the meeting. Say "client brief" or ' +
           '"meeting brief" and send me the transcript if you still want one.',

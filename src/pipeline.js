@@ -51,6 +51,7 @@ async function processOne({
   onConfirm,
   onChooseProject,
   replay,
+  again = false,
 }) {
   const meeting = applyReplay(await adapters.attendees.getMeetingDetails({
     meetingId,
@@ -64,7 +65,9 @@ async function processOne({
   // briefed, or declined, is not revisited. A meeting held again on the same
   // link keeps its meeting ID but brings a new transcript: that is a new
   // session, and it is asked about afresh.
-  const prior = meetingsDb.priorOutcome(meeting.id, attendeeId, transcriptId);
+  // `again` is a person pressing a button for another kind of brief on a card that already
+  // produced one: an explicit request, not a redelivery, so it is not a duplicate.
+  const prior = again ? null : meetingsDb.priorOutcome(meeting.id, attendeeId, transcriptId);
   if (prior) {
     logger.info({ meetingId: meeting.id, transcriptId, prior }, 'Already handled; ignoring redelivery');
     return { status: 'duplicate', meeting };
@@ -129,7 +132,7 @@ async function processOne({
       joinUrl: meeting.joinUrl,
       organizerId: meeting.organizer?.identity?.user?.id,
       transcriptFixture: meeting.transcriptFixture,
-      skipTranscriptIds: [...meetingsDb.coveredTranscriptIds(meeting.id, attendeeId)],
+      skipTranscriptIds: again ? [] : [...meetingsDb.coveredTranscriptIds(meeting.id, attendeeId)],
       focusTranscriptId: transcriptId,
     });
   } catch (err) {
