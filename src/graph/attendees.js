@@ -3,11 +3,16 @@ const logger = require('../utils/logger');
 const { graphClient } = require('./client');
 const auth = require('./auth');
 
-const emailOf = (identity) => {
-  const user = identity && identity.user;
-  if (!user) return null;
-  return user.userPrincipalName || user.email || null;
+// Graph puts a participant's address in `upn` on the participant itself; the identity
+// inside it carries only an id and a tenant. Looking only inside the identity found no
+// email for anybody, so every invited person looked like an unidentified guest.
+const emailOf = (participant) => {
+  if (!participant) return null;
+  const user = participant.identity && participant.identity.user;
+  return participant.upn || (user && (user.userPrincipalName || user.email)) || null;
 };
+const nameOf = (participant) =>
+  (participant.identity && participant.identity.user && participant.identity.user.displayName) || participant.upn || 'Unknown';
 
 /**
  * The Dramantram person the CBD is for: whoever the bot is acting for, who is
@@ -52,21 +57,19 @@ async function getMeetingDetails({ meetingId, userId, joinUrl }) {
 
   const attendees = new Map();
   for (const p of (meeting.participants && meeting.participants.attendees) || []) {
-    const email = emailOf(p.identity);
+    const email = emailOf(p);
     attendees.set(email || `anon-${attendees.size}`, {
-      displayName: (p.identity && p.identity.user && p.identity.user.displayName) || 'Unknown',
+      displayName: nameOf(p),
       email,
       role: 'attendee',
     });
   }
 
-  const organizerEmail = emailOf(
-    meeting.participants && meeting.participants.organizer && meeting.participants.organizer.identity
-  );
+  const organizer = meeting.participants && meeting.participants.organizer;
+  const organizerEmail = emailOf(organizer);
   if (organizerEmail) {
     attendees.set(organizerEmail, {
-      displayName:
-        meeting.participants.organizer.identity.user.displayName || 'Unknown',
+      displayName: nameOf(organizer),
       email: organizerEmail,
       role: 'organizer',
     });

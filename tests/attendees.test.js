@@ -4,11 +4,16 @@
 const clientModule = require('../src/graph/client');
 const auth = require('../src/graph/auth');
 
-const MEETING = {
+// What Graph really returns for a meeting: the address is `upn` on the participant, the identity inside has only an id.
+const identity = { user: { '@odata.type': '#microsoft.graph.communicationsUserIdentity', id: 'guid', tenantId: 'tenant' } };
+let MEETING = {
   id: 'meeting-1',
   subject: 'Newsletter kickoff',
   joinWebUrl: 'https://teams/x',
-  participants: { organizer: { identity: { user: { displayName: 'Dev Maheshwari', userPrincipalName: 'dev@dramantram.com' } } }, attendees: [] },
+  participants: {
+    organizer: { upn: 'dev@dramantram.com', role: 'presenter', identity },
+    attendees: [{ upn: 'shlok.k@dramantram.com', role: 'attendee', identity }],
+  },
 };
 
 // attendees binds graphClient once, when first required, so the stub is installed
@@ -48,5 +53,22 @@ describe('the project owner of a real meeting', () => {
     me = () => { throw new Error('403'); };
     const meeting = await getMeetingDetails({ meetingId: 'meeting-1', userId: 'u' });
     expect(meeting.dramantramUser).toEqual({ id: 'u' });
+  });
+});
+
+describe('who was invited', () => {
+  it('reads each person\'s address from the participant, so an invited colleague is known to be internal', async () => {
+    me = () => ({ displayName: 'Dev', mail: 'dev@dramantram.com' });
+    const meeting = await getMeetingDetails({ meetingId: 'meeting-1', userId: 'u' });
+    expect(meeting.attendees.map((a) => a.email).sort()).toEqual(['dev@dramantram.com', 'shlok.k@dramantram.com']);
+    expect(meeting.attendees.every((a) => a.email)).toBe(true); // nobody is left as an unidentified guest
+    expect(meeting.hostedBy).toBe('dramantram');
+  });
+
+  it('keeps an outside guest\'s address, so the meeting is a client meeting', async () => {
+    me = () => ({ displayName: 'Dev', mail: 'dev@dramantram.com' });
+    MEETING = { ...MEETING, participants: { ...MEETING.participants, attendees: [{ upn: 'ananya@verdant.com', role: 'attendee', identity }] } };
+    const meeting = await getMeetingDetails({ meetingId: 'meeting-1', userId: 'u' });
+    expect(meeting.attendees.map((a) => a.email)).toContain('ananya@verdant.com');
   });
 });
