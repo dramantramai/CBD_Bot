@@ -26,6 +26,12 @@ describe('the version line in a project CBD\'s header', () => {
     expect(readVersionHeader(twice).version).toBe(2);
   });
 
+  it('reads back a September date, which this machine writes as "Sept"', () => {
+    const out = readVersionHeader(stamp({ date: new Date('2026-09-24T08:00:00Z') }));
+    expect(out).toMatchObject({ version: 1 });
+    expect(out.date).toMatch(/^24 Sep/);
+  });
+
   it('takes the day in India, where the team is, not in UTC', () => {
     const lateUtc = new Date('2026-10-15T20:00:00Z'); // already the 16th in Kolkata
     expect(readVersionHeader(stamp({ date: lateUtc })).date).toBe('16 Oct 2026');

@@ -6,7 +6,7 @@ const PizZip = require('pizzip');
 // another editor has re-saved the file.
 const HEADER_PART = 'word/header1.xml';
 const SEP = ' · ';
-const LINE = /^(.+?) · v(\d+) · (\d{1,2} [A-Za-z]{3} \d{4})$/;
+const LINE = /^(.+?) · v(\d+) · (\d{1,2} [A-Za-z]{3,4} \d{4})$/; // "Sept" is four letters
 
 const esc = (s) => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 const textOf = (xml) => (xml.match(/<w:t[^>]*>[^<]*<\/w:t>/g) || []).map((t) => t.replace(/<[^>]+>/g, '')).join('');

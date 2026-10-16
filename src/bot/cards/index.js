@@ -66,7 +66,28 @@ function buildProjectCard({ meetingId, title, suggestion, projects }) {
   return { type: 'AdaptiveCard', $schema: 'http://adaptivecards.io/schemas/adaptive-card.json', version: '1.4', body, actions };
 }
 
+/** Which file does the new version build on? One question, three answers. */
+function buildBaselineCard({ meetingId, title, question, canUse }) {
+  const data = (choice) => ({ action: 'chooseBaseline', meetingId, choice });
+  const actions = [];
+  if (canUse) actions.push({ type: 'Action.Submit', title: 'Yes', data: data('use') });
+  actions.push({ type: 'Action.Submit', title: 'No, I have a newer file', data: data('upload') });
+  actions.push({ type: 'Action.Submit', title: 'Start fresh', data: data('fresh') });
+  return {
+    type: 'AdaptiveCard',
+    $schema: 'http://adaptivecards.io/schemas/adaptive-card.json',
+    version: '1.4',
+    body: [
+      { type: 'TextBlock', text: 'Which file should I build on?', weight: 'Bolder', size: 'Medium' },
+      { type: 'TextBlock', text: title, wrap: true, isSubtle: true },
+      { type: 'TextBlock', text: question, wrap: true },
+    ],
+    actions,
+  };
+}
+
 module.exports = {
+  buildBaselineCard,
   buildProjectCard,
   render,
   buildWelcomeCard: (data) => render(welcomeCard, data),

@@ -20,7 +20,7 @@ module.exports = {
   async fileInfo({ ref }) {
     const f = [...files.values()].find((x) => x.id === ref);
     if (!f) throw Object.assign(new Error('not found'), { status: 404 });
-    return { etag: f.etag, lastModified: f.lastModified, lastModifiedBy: 'fake' };
+    return { etag: f.etag, lastModified: f.lastModified, lastModifiedBy: f.lastModifiedBy || 'fake' };
   },
   async shareFolder() {},
 };
