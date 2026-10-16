@@ -34,6 +34,12 @@ describe('the project record', () => {
     expect(findByName('VERDANT KITCHENS', 'video')).not.toBeNull();
   });
 
+  it('treats names that make the same chat and file names as the same project, however they are spelled', () => {
+    createProject({ clientName: 'Verdant Kitchens', projectName: 'Social Media' });
+    expect(() => createProject({ clientName: 'Verdant-Kitchens', projectName: 'social  media' })).toThrow(/already exists/);
+    expect(findByName('VerdantKitchens', 'SocialMedia')).not.toBeNull();
+  });
+
   it('allows the same client a second project', () => {
     createProject({ clientName: 'Verdant Kitchens', projectName: 'Video' });
     expect(() => createProject({ clientName: 'Verdant Kitchens', projectName: 'Website' })).not.toThrow();

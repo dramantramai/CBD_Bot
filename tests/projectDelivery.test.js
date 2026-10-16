@@ -268,13 +268,22 @@ describe('creating the chat through Graph', () => {
     expect(body.chatType).toBe('group');
   });
 
+  it('ignores an older chat with the same name when finding the new one, and waits for the new one to appear', async () => {
+    const now = Date.now();
+    const older = { id: 'old-chat', createdDateTime: new Date(now - 86400000).toISOString() };
+    const fresh = { id: 'new-chat', createdDateTime: new Date(now + 1000).toISOString() };
+    stub(reply(202), reply(200, { value: [older] }), reply(200, { value: [older, fresh] }));
+    expect(await make()).toBe('new-chat');
+  });
+
   it('takes the chat id from the operation address when Graph answers 202', async () => {
     stub(reply(202, {}, { location: "/chats('19:abc@thread.v2')/operations('op1')" }));
     expect(await make()).toBe('19:abc@thread.v2');
   });
 
   it('finds the chat by name when the answer carries no address, waiting for it to appear', async () => {
-    stub(reply(202), reply(200, { value: [] }), reply(200, { value: [{ id: 'older', createdDateTime: '2026-10-01' }, { id: 'newest', createdDateTime: '2026-10-15' }] }));
+    const at = (ms) => new Date(Date.now() + ms).toISOString(); // both made after the request
+    stub(reply(202), reply(200, { value: [] }), reply(200, { value: [{ id: 'first', createdDateTime: at(500) }, { id: 'newest', createdDateTime: at(2000) }] }));
     expect(await make()).toBe('newest');
   });
 

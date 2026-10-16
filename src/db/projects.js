@@ -40,12 +40,13 @@ function createProject({ clientName, projectName, createdBy }) {
 
 const getProject = (id) => getDb().prepare('SELECT * FROM projects WHERE id = ?').get(id) || null;
 
+/**
+ * The project with these names. "Verdant Kitchens" and "Verdant-Kitchens" make the same chat,
+ * folder and file names, so they are the same project: compared as the names are written into those.
+ */
 function findByName(clientName, projectName) {
-  return (
-    getDb()
-      .prepare('SELECT * FROM projects WHERE client_name = ? COLLATE NOCASE AND project_name = ? COLLATE NOCASE')
-      .get(String(clientName).trim(), String(projectName).trim()) || null
-  );
+  const wanted = projectLabel({ client_name: clientName, project_name: projectName }).toLowerCase();
+  return listProjects().find((p) => projectLabel(p).toLowerCase() === wanted) || null;
 }
 
 const listProjects = () => getDb().prepare('SELECT * FROM projects ORDER BY last_activity DESC, rowid DESC').all();

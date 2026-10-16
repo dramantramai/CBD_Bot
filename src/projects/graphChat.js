@@ -36,6 +36,7 @@ async function createChat(token, { topic, memberIds, appCatalogId, wait = sleep 
   const body = { chatType: 'group', topic, members: memberIds.map(member) };
   if (appCatalogId) body.installedApps = [{ 'teamsApp@odata.bind': `${GRAPH}/appCatalogs/teamsApps/${appCatalogId}` }];
 
+  const requestedAt = Date.now();
   const { status, json, headers } = await call(token, 'POST', '/chats', body);
   if (status === 201 && json.id) return json.id;
 
@@ -44,7 +45,10 @@ async function createChat(token, { topic, memberIds, appCatalogId, wait = sleep 
 
   for (let attempt = 0; attempt < 6; attempt += 1) {
     await wait(1500);
-    const found = (await call(token, 'GET', `/me/chats?$filter=${encodeURIComponent(`topic eq '${topic.replace(/'/g, "''")}'`)}&$select=id,createdDateTime`)).json.value || [];
+    // Teams allows two chats with the same name, and an older one is listed straight away, so
+    // only a chat created after this request can be the one just made.
+    const found = ((await call(token, 'GET', `/me/chats?$filter=${encodeURIComponent(`topic eq '${topic.replace(/'/g, "''")}'`)}&$select=id,createdDateTime`)).json.value || [])
+      .filter((c) => new Date(c.createdDateTime).getTime() >= requestedAt - 10000);
     if (found.length) return found.sort((a, b) => String(b.createdDateTime).localeCompare(String(a.createdDateTime)))[0].id;
   }
   throw new Error(`The group chat "${topic}" was accepted but never appeared`);
