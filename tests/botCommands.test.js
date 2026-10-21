@@ -249,6 +249,14 @@ describe('"last client brief"', () => {
     kept(u, 'Mine');
     const c = inChat(u, 'groupChat');
     await bot.handleText(c);
+    expect(reply(c.sent)).toMatch(/only take commands in our personal chat/);
+  });
+
+  it('starts nothing from a command typed in a group chat', async () => {
+    const c = inChat(user(), 'groupChat');
+    c.activity.text = 'client brief';
+    await bot.handleText(c);
     expect(reply(c.sent)).toMatch(/personal chat/);
+    expect(reply(c.sent)).not.toMatch(/Send me the transcript/);
   });
 });

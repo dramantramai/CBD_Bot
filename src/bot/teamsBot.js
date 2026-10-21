@@ -73,6 +73,7 @@ class CbdBot extends TeamsActivityHandler {
       );
 
       if (file) {
+        if (await this.refuseInGroup(context)) return next();
         await this.handleUploadedTranscript(context, file);
       } else if (value && value.action) {
         await this.handleCardAction(context, value);
@@ -336,7 +337,18 @@ class CbdBot extends TeamsActivityHandler {
     });
   }
 
+  /** Commands and uploads only work in the personal chat; a group chat just receives the finished files. */
+  async refuseInGroup(context) {
+    const type = context.activity.conversation?.conversationType;
+    if (!type || type === 'personal') return false;
+    await context.sendActivity(
+      'I only take commands in our personal chat, not in a group chat. Message me there (only the meeting organiser can do this). This chat is just where I post the finished briefs.'
+    );
+    return true;
+  }
+
   async handleText(context) {
+    if (await this.refuseInGroup(context)) return;
     const raw = (context.activity.text || '').trim();
     const text = raw.toLowerCase();
     const userId = this.userIdOf(context);
